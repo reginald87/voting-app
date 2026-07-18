@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+}
+
+model Voter {
+  id          Int       @id @default(autoincrement())
+  matNumber   String    @unique
+  email       String    @unique
+  firstName   String
+  lastName    String
+  department  String
+  level       String
+  sugReceipt  String    @unique
+  sugReceiptUrl String?
+  avatarUrl   String?
+  accredited  Boolean   @default(false)
+  faceTemplate String?
+  faceEnrolled Boolean  @default(false)
+  createdAt   DateTime  @default(now())
+  sessions    Session[]
+  votes       Vote[]
+  otps        Otp[]
+}
+
+model Session {
+  id        String   @id
+  voterId   Int
+  voter     Voter    @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Otp {
+  id        Int      @id @default(autoincrement())
+  voterId   Int
+  voter     Voter    @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Position {
+  id          Int         @id @default(autoincrement())
+  title       String      @unique
+  description String?
+  order       Int         @default(0)
+  aspirants   Aspirant[]
+  votes       Vote[]
+}
+
+model Aspirant {
+  id          Int       @id @default(autoincrement())
+  positionId  Int
+  position    Position  @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String
+  department  String
+  level       String
+  manifesto   String?
+  photoUrl    String?
+  order       Int       @default(0)
+  votes       Vote[]
+}
+
+model Vote {
+  id          Int       @id @default(autoincrement())
+  voterId     Int
+  voter       Voter     @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  positionId  Int
+  position    Position  @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  aspirantId  Int?
+  aspirant    Aspirant? @relation(fields: [aspirantId], references: [id], onDelete: Cascade)
+  abstained   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@unique([voterId, positionId])
+}
+
+model Setting {
+  id                 Int      @id @default(1)
+  votingOpen         Boolean  @default(false)
+  votingStart        DateTime?
+  votingEnd          DateTime?
+  registrationOpen   Boolean  @default(false)
+  registrationStart  DateTime?
+  registrationEnd    DateTime?
+  accreditationOpen   Boolean  @default(false)
+  accreditationStart DateTime?
+  accreditationEnd   DateTime?
+  updatedAt          DateTime @default(now())
+}
+
+model Executive {
+  id          Int      @id @default(autoincrement())
+  name        String
+  position    String
+  department  String
+  level       String
+  year        String
+  photoUrl    String?
+  order       Int      @default(0)
+}
+
+model SiteContent {
+  id                 Int     @id @default(1)
+  uniLogoUrl         String?
+  sugLogoUrl         String?
+  faviconUrl         String?
+  deanPhotoUrl       String?
+  deanName           String?
+  deanMessage        String?
+  heroTitle          String?
+  heroSubtitle       String?
+  heroCtaPrimary     String?
+  heroCtaSecondary   String?
+  peaceTitle         String?
+  peaceBody          String?
+  footerText         String?
+  faceRecognition    Boolean @default(false)
+  updatedAt          DateTime @default(now())
+}
