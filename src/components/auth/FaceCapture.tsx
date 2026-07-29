@@ -149,6 +149,11 @@ export function FaceCapture({
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
+    if (video.readyState < 2) {
+      setMessage("Camera is not ready. Please try again.");
+      setAlreadyCapturing(false);
+      return;
+    }
     try {
       const faceapi = await loadFaceApi();
       const result = await faceapi
@@ -161,6 +166,7 @@ export function FaceCapture({
         return;
       }
       const descriptor = Array.from(result.descriptor as ArrayLike<number>);
+      setMessage("");
       setCaptured(descriptor);
       onCapture({ descriptor, liveness: "ok" });
       stop();

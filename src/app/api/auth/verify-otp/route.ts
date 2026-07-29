@@ -14,7 +14,16 @@ export async function POST(req: Request) {
 
   const matNumber = String(body.matNumber || "").trim();
   const code = String(body.code || "").trim();
-  const faceTemplate = typeof body.faceTemplate === "string" ? body.faceTemplate : null;
+  // Accept both stringified JSON and raw arrays — the client serialises the
+  // descriptor as a JSON array inside the request body, while the register
+  // route sends it as a stringified array inside FormData.
+  const rawFace = body.faceTemplate ?? null;
+  const faceTemplate =
+    typeof rawFace === "string"
+      ? rawFace
+      : Array.isArray(rawFace)
+        ? JSON.stringify(rawFace)
+        : null;
 
   if (!matNumber || !code) {
     return NextResponse.json(
@@ -37,7 +46,7 @@ export async function POST(req: Request) {
     // Only enforce face matching if the voter actually enrolled a template.
     // Voters without an enrolled face are not locked out (scaffold policy).
     if (voter.faceEnrolled) {
-      const face = await matchFace(voter.id, faceTemplate || "");
+      const face = await matchFace(voter.id, faceTemplate);
       if (!face.ok) {
         return NextResponse.json(
           { error: face.reason || "Face verification failed." },

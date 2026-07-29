@@ -166,8 +166,8 @@ export async function POST(req: Request) {
   if ((await faceEnabled()) && f.faceTemplate) {
     try {
       await enrollFace(voter.id, f.faceTemplate);
-    } catch {
-      // Ignore invalid descriptor; voter can enroll face later if needed.
+    } catch (err) {
+      console.error("[register] face enrollment failed:", err);
     }
   }
 
