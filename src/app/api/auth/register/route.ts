@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { issueOtp } from "@/lib/otp";
 import { enrollFace, faceEnabled } from "@/lib/face";
 import { getRegistrationStatus } from "@/lib/election";
-import { DEPARTMENTS, LEVELS } from "@/lib/constants";
+import { LEVELS } from "@/lib/constants";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
@@ -63,8 +63,8 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (!DEPARTMENTS.includes(department)) {
-    return NextResponse.json({ error: "Invalid department." }, { status: 400 });
+  if (!department) {
+    return NextResponse.json({ error: "Department is required." }, { status: 400 });
   }
   if (!LEVELS.includes(level)) {
     return NextResponse.json({ error: "Invalid level." }, { status: 400 });

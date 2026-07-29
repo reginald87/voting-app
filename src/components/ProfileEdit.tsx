@@ -216,13 +216,12 @@ export function ProfileEdit({ voter }: { voter: ProfileSeed }) {
         </div>
         <div>
           <label htmlFor="pf-department" className="mb-1 block text-xs font-medium text-slate-500">Department</label>
-          <select id="pf-department" className="input" value={department} onChange={(e) => setDepartment(e.target.value)}>
+          <input id="pf-department" className="input" list="dept-list" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Type or select your department" required />
+          <datalist id="dept-list">
             {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
+              <option key={d} value={d} />
             ))}
-          </select>
+          </datalist>
         </div>
         <div>
           <label htmlFor="pf-level" className="mb-1 block text-xs font-medium text-slate-500">Level</label>

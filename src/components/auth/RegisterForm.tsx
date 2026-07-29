@@ -17,7 +17,7 @@ export function RegisterForm() {
     email: "",
     firstName: "",
     lastName: "",
-    department: DEPARTMENTS[0],
+    department: "",
     level: LEVELS[0],
     sugReceipt: "",
   });
@@ -133,15 +133,19 @@ export function RegisterForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Department</label>
-          <select
+          <input
             className="input"
+            list="dept-list"
             value={form.department}
             onChange={(e) => set("department", e.target.value)}
-          >
+            placeholder="Type or select your department"
+            required
+          />
+          <datalist id="dept-list">
             {DEPARTMENTS.map((d) => (
-              <option key={d}>{d}</option>
+              <option key={d} value={d} />
             ))}
-          </select>
+          </datalist>
         </div>
         <div>
           <label className="label">Level</label>

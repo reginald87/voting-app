@@ -196,15 +196,19 @@ export function AspirantsManager({
               required
             />
           </div>
-          <select
+          <input
             className="input"
+            list="dept-list"
             value={form.department}
             onChange={(e) => setForm({ ...form, department: e.target.value })}
-          >
+            placeholder="Type or select department"
+            required
+          />
+          <datalist id="dept-list">
             {DEPARTMENTS.map((d) => (
-              <option key={d}>{d}</option>
+              <option key={d} value={d} />
             ))}
-          </select>
+          </datalist>
           <select
             className="input"
             value={form.level}

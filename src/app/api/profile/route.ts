@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { getVoter } from "@/lib/session";
-import { DEPARTMENTS, LEVELS } from "@/lib/constants";
+import { LEVELS } from "@/lib/constants";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -37,8 +37,8 @@ export async function PATCH(req: Request) {
   if (!firstName || !lastName || !department || !level) {
     return NextResponse.json({ error: "Name, department and level are required." }, { status: 400 });
   }
-  if (!DEPARTMENTS.includes(department)) {
-    return NextResponse.json({ error: "Invalid department." }, { status: 400 });
+  if (!department) {
+    return NextResponse.json({ error: "Department is required." }, { status: 400 });
   }
   if (!LEVELS.includes(level)) {
     return NextResponse.json({ error: "Invalid level." }, { status: 400 });
