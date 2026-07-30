@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DEPARTMENTS, LEVELS } from "@/lib/constants";
 import { FaceCapture } from "./FaceCapture";
+import { registerAction } from "@/lib/actions/register";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -63,9 +64,8 @@ export function RegisterForm() {
     }
 
     try {
-      const res = await fetch("/api/auth/register", { method: "POST", body: data });
-      const result = await res.json();
-      if (!res.ok) {
+      const result = await registerAction(data);
+      if ("error" in result) {
         setError(result.error || "Registration failed.");
         setLoading(false);
         return;
