@@ -1,6 +1,37 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
+import { mkdir, writeFile } from "fs/promises";
+import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+
+const MAX_BYTES = 2 * 1024 * 1024;
+const ALLOWED = ["image/png", "image/jpeg", "image/webp"];
+
+function extFor(type: string) {
+  if (type === "image/png") return ".png";
+  if (type === "image/jpeg") return ".jpg";
+  if (type === "image/webp") return ".webp";
+  return "";
+}
+
+async function savePhoto(file: unknown): Promise<string | null> {
+  if (!file || typeof file !== "object" || !("arrayBuffer" in file)) return null;
+  const f = file as any;
+  if (!ALLOWED.includes(f.type)) {
+    throw new Error("Photo must be PNG, JPG or WEBP.");
+  }
+  const buf = Buffer.from(await f.arrayBuffer());
+  if (buf.length > MAX_BYTES) {
+    throw new Error("Photo is too large (max 2MB).");
+  }
+  const ext = extFor(f.type);
+  const fname = `${randomUUID()}${ext}`;
+  const dir = join(process.cwd(), "public", "uploads");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, fname), buf);
+  return `/uploads/${fname}`;
+}
 
 export async function GET(req: Request) {
   await requireAdmin();
@@ -17,14 +48,14 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   await requireAdmin();
-  const body = await req.json().catch(() => ({}));
-  const positionId = Number(body.positionId);
-  const firstName = String(body.firstName || "").trim();
-  const lastName = String(body.lastName || "").trim();
-  const department = String(body.department || "").trim();
-  const level = String(body.level || "").trim();
-  const manifesto = body.manifesto ? String(body.manifesto) : null;
-  const photoUrl = body.photoUrl ? String(body.photoUrl).trim() : null;
+  const f = await req.formData();
+  const get = (k: string) => String(f.get(k) || "").trim();
+  const positionId = Number(get("positionId"));
+  const firstName = get("firstName");
+  const lastName = get("lastName");
+  const department = get("department");
+  const level = get("level");
+  const manifesto = f.get("manifesto") ? String(f.get("manifesto")) : null;
 
   if (!Number.isInteger(positionId) || !firstName || !lastName || !department || !level) {
     return NextResponse.json(
@@ -32,6 +63,14 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+
+  let photoUrl: string | null = null;
+  try {
+    photoUrl = await savePhoto(f.get("photoUrl"));
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Invalid photo." }, { status: 400 });
+  }
+
   const max = await prisma.aspirant.aggregate({
     where: { positionId },
     _max: { order: true },
@@ -53,20 +92,28 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   await requireAdmin();
-  const body = await req.json().catch(() => ({}));
-  const id = Number(body.id);
+  const f = await req.formData();
+  const get = (k: string) => String(f.get(k) || "").trim();
+  const id = Number(get("id"));
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: "Invalid id." }, { status: 400 });
   }
+
   const data: any = {};
-  if (body.firstName !== undefined) data.firstName = String(body.firstName).trim();
-  if (body.lastName !== undefined) data.lastName = String(body.lastName).trim();
-  if (body.department !== undefined) data.department = String(body.department).trim();
-  if (body.level !== undefined) data.level = String(body.level).trim();
-  if (body.manifesto !== undefined) data.manifesto = String(body.manifesto);
-  if (body.photoUrl !== undefined)
-    data.photoUrl = body.photoUrl ? String(body.photoUrl).trim() : null;
-  if (body.positionId !== undefined) data.positionId = Number(body.positionId);
+  if (f.get("firstName") !== null) data.firstName = get("firstName");
+  if (f.get("lastName") !== null) data.lastName = get("lastName");
+  if (f.get("department") !== null) data.department = get("department");
+  if (f.get("level") !== null) data.level = get("level");
+  if (f.get("manifesto") !== null) data.manifesto = f.get("manifesto") ? String(f.get("manifesto")) : null;
+  if (f.get("positionId") !== null) data.positionId = Number(get("positionId"));
+
+  try {
+    const photoUrl = await savePhoto(f.get("photoUrl"));
+    if (photoUrl) data.photoUrl = photoUrl;
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Invalid photo." }, { status: 400 });
+  }
+
   const aspirant = await prisma.aspirant.update({ where: { id }, data });
   return NextResponse.json({ ok: true, aspirant });
 }

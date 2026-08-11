@@ -15,6 +15,24 @@ function extFor(type: string) {
   return "";
 }
 
+async function savePhoto(file: unknown): Promise<string | null> {
+  if (!file || typeof file !== "object" || !("arrayBuffer" in file)) return null;
+  const f = file as any;
+  if (!ALLOWED.includes(f.type)) {
+    throw new Error("Photo must be PNG, JPG or WEBP.");
+  }
+  const buf = Buffer.from(await f.arrayBuffer());
+  if (buf.length > MAX_BYTES) {
+    throw new Error("Photo is too large (max 2MB).");
+  }
+  const ext = extFor(f.type);
+  const fname = `${randomUUID()}${ext}`;
+  const dir = join(process.cwd(), "public", "uploads");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, fname), buf);
+  return `/uploads/${fname}`;
+}
+
 export async function GET() {
   await requireAdmin();
   const execs = await prisma.executive.findMany({ orderBy: { order: "asc" } });
@@ -36,21 +54,10 @@ export async function POST(req: Request) {
   }
 
   let photoUrl: string | null = null;
-  const file = f.get("photoUrl");
-  if (file && typeof file === "object" && "arrayBuffer" in file) {
-    if (!ALLOWED.includes((file as any).type)) {
-      return NextResponse.json({ error: "Photo must be PNG, JPG or WEBP." }, { status: 400 });
-    }
-    const buf = Buffer.from(await (file as any).arrayBuffer());
-    if (buf.length > MAX_BYTES) {
-      return NextResponse.json({ error: "Photo is too large (max 2MB)." }, { status: 400 });
-    }
-    const ext = extFor((file as any).type);
-    const fname = `${randomUUID()}${ext}`;
-    const dir = join(process.cwd(), "public", "uploads");
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, fname), buf);
-    photoUrl = `/uploads/${fname}`;
+  try {
+    photoUrl = await savePhoto(f.get("photoUrl"));
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Invalid photo." }, { status: 400 });
   }
 
   const max = await prisma.executive.aggregate({ _max: { order: true } });
@@ -85,14 +92,11 @@ export async function PUT(req: Request) {
   if (f.get("year") !== null) data.year = get("year") || "—";
 
   const file = f.get("photoUrl");
-  if (file && typeof file === "object" && "arrayBuffer" in file) {
-    const buf = Buffer.from(await (file as any).arrayBuffer());
-    const ext = extFor((file as any).type);
-    const fname = `${randomUUID()}${ext}`;
-    const dir = join(process.cwd(), "public", "uploads");
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, fname), buf);
-    data.photoUrl = `/uploads/${fname}`;
+  try {
+    const photoUrl = await savePhoto(file);
+    if (photoUrl) data.photoUrl = photoUrl;
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Invalid photo." }, { status: 400 });
   }
 
   const exec = await prisma.executive.update({ where: { id }, data });

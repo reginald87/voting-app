@@ -40,8 +40,8 @@ export function AspirantsManager({
     department: DEPARTMENTS[0],
     level: LEVELS[0],
     manifesto: "",
-    photoUrl: "",
   });
+  const [file, setFile] = useState<File | null>(null);
 
   function startEdit(a: Aspirant) {
     setEditing(a);
@@ -52,8 +52,8 @@ export function AspirantsManager({
       department: a.department,
       level: a.level,
       manifesto: a.manifesto || "",
-      photoUrl: a.photoUrl || "",
     });
+    setFile(null);
     setError(null);
   }
 
@@ -66,23 +66,23 @@ export function AspirantsManager({
       department: DEPARTMENTS[0],
       level: LEVELS[0],
       manifesto: "",
-      photoUrl: "",
     });
+    setFile(null);
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    const fd = new FormData();
+    if (editing) fd.set("id", String(editing.id));
+    Object.entries(form).forEach(([k, v]) => fd.set(k, String(v)));
+    if (file) fd.set("photoUrl", file);
+
     const url = "/api/admin/aspirants";
     const method = editing ? "PUT" : "POST";
-    const payload = editing ? { id: editing.id, ...form } : form;
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
+    const res = await fetch(url, { method, body: fd });
+    const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) {
       setError(data.error || "Could not save aspirant.");
@@ -226,11 +226,14 @@ export function AspirantsManager({
             onChange={(e) => setForm({ ...form, manifesto: e.target.value })}
           />
           <input
-            className="input"
-            placeholder="Photo URL (optional)"
-            value={form.photoUrl}
-            onChange={(e) => setForm({ ...form, photoUrl: e.target.value })}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="block w-full text-xs text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand-700"
           />
+          {editing && !file && (
+            <p className="text-xs text-slate-400">Leave blank to keep the current photo.</p>
+          )}
           <div className="flex gap-2">
             <button className="btn-primary flex-1" disabled={busy || positions.length === 0}>
               {editing ? "Save" : "Add"}
