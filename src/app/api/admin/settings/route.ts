@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminApi } from "@/lib/session";
 
 // Admin submits local wall-clock time in WAT (UTC+1). Interpret it as UTC+1
 // explicitly so the stored instant is correct regardless of the server's
@@ -21,7 +21,8 @@ function toDate(value: unknown): Date | null {
 }
 
 export async function GET() {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const settings = await prisma.setting.upsert({
     where: { id: 1 },
     update: {},
@@ -31,7 +32,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const votingOpen = Boolean(body.votingOpen);
   const votingStart = toDate(body.votingStart);

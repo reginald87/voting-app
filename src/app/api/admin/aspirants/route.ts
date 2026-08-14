@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminApi } from "@/lib/session";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED = ["image/png", "image/jpeg", "image/webp"];
@@ -34,7 +34,8 @@ async function savePhoto(file: unknown): Promise<string | null> {
 }
 
 export async function GET(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const positionId = searchParams.get("positionId");
   const where = positionId ? { positionId: Number(positionId) } : undefined;
@@ -47,7 +48,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const f = await req.formData();
   const get = (k: string) => String(f.get(k) || "").trim();
   const positionId = Number(get("positionId"));
@@ -91,7 +93,8 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const f = await req.formData();
   const get = (k: string) => String(f.get(k) || "").trim();
   const id = Number(get("id"));
@@ -119,7 +122,8 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const id = Number(body.id);
   if (!Number.isInteger(id)) {

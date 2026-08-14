@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminApi } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const id = Number(body.id);
   const accredited = Boolean(body.accredited);

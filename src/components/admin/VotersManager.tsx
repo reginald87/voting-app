@@ -36,7 +36,12 @@ export function VotersManager() {
       const res = await fetch(`/api/admin/voters?q=${encodeURIComponent(q)}`, {
         cache: "no-store",
       });
-      const data = await res.json();
+      if (res.status === 401) {
+        router.push("/admin/login");
+        return;
+      }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
       if (!res.ok) throw new Error(data.error || "Failed to load voters.");
       setVoters(data.voters);
       setLoaded(true);
@@ -45,7 +50,7 @@ export function VotersManager() {
     } finally {
       setLoading(false);
     }
-  }, [q]);
+  }, [q, router]);
 
   const toggleAccredit = async (v: VoterRow) => {
     setBusyId(v.id);

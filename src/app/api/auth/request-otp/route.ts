@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { issueOtp } from "@/lib/otp";
+import { isValidMatNumber } from "@/lib/constants";
 
 export async function POST(req: Request) {
   let body: any;
@@ -13,6 +14,12 @@ export async function POST(req: Request) {
   const matNumber = String(body.matNumber || "").trim();
   if (!matNumber) {
     return NextResponse.json({ error: "Matriculation number is required." }, { status: 400 });
+  }
+  if (!isValidMatNumber(matNumber)) {
+    return NextResponse.json(
+      { error: "Invalid matriculation number. Use the format UG/00/0000 (e.g. UG/23/0045)." },
+      { status: 400 }
+    );
   }
 
   const voter = await prisma.voter.findUnique({ where: { matNumber } });

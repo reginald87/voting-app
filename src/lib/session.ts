@@ -94,3 +94,14 @@ export async function requireAdmin() {
   if (!admin) redirect("/admin/login");
   return admin;
 }
+
+// Same as requireAdmin but for API route handlers. Instead of throwing a
+// redirect (which produces an empty 307 body that breaks client JSON parsing),
+// it returns null so the caller can respond with a proper 401 JSON.
+export async function requireAdminApi() {
+  try {
+    return await requireAdmin();
+  } catch {
+    return null;
+  }
+}

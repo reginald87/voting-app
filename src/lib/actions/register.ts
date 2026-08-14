@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { issueOtp } from "@/lib/otp";
 import { enrollFace, faceEnabled } from "@/lib/face";
 import { getRegistrationStatus } from "@/lib/election";
-import { LEVELS } from "@/lib/constants";
+import { LEVELS, isValidMatNumber } from "@/lib/constants";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
@@ -33,6 +33,9 @@ export async function registerAction(formData: FormData) {
 
   if (!matNumber || !email || !firstName || !lastName || !sugReceipt) {
     return { error: "All fields are required, including the SUG receipt." };
+  }
+  if (!isValidMatNumber(matNumber)) {
+    return { error: "Invalid matriculation number. Use the format UG/00/0000 (e.g. UG/23/0045)." };
   }
   if (!department) {
     return { error: "Department is required." };

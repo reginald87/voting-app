@@ -38,10 +38,15 @@ export function AccreditationManager({
     if (q) params.set("q", q);
     if (status) params.set("status", status);
     const res = await fetch(`/api/admin/accreditation?${params.toString()}`);
-    const data = await res.json();
-    setVoters(data.voters);
-    setTotal(data.total);
-    setAccredited(data.accredited);
+    if (res.status === 401) {
+      window.location.href = "/admin/login";
+      return;
+    }
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    setVoters(data.voters ?? []);
+    setTotal(data.total ?? 0);
+    setAccredited(data.accredited ?? 0);
   }, [q, status]);
 
   useEffect(() => {

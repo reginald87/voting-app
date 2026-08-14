@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminApi } from "@/lib/session";
 
 export async function GET() {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const positions = await prisma.position.findMany({
     orderBy: { order: "asc" },
     include: { _count: { select: { aspirants: true } } },
@@ -12,7 +13,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const title = String(body.title || "").trim();
   const description = body.description ? String(body.description).trim() : null;
@@ -27,7 +29,8 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const id = Number(body.id);
   const title = body.title ? String(body.title).trim() : undefined;
@@ -44,7 +47,8 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const id = Number(body.id);
   if (!Number.isInteger(id)) {

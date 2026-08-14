@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminApi } from "@/lib/session";
 import { updateSiteContent } from "@/lib/content";
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -30,7 +30,8 @@ async function saveUpload(file: any): Promise<string | null> {
 }
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdminApi();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const contentType = req.headers.get("content-type") || "";
   let fields: Record<string, any> = {};
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { isValidMatNumber, MAT_NUMBER_HINT } from "@/lib/constants";
 
 export function RequestOtpForm() {
   const router = useRouter();
@@ -15,6 +16,11 @@ export function RequestOtpForm() {
     setLoading(true);
     setError(null);
     setDevOtp(null);
+    if (!isValidMatNumber(matNumber)) {
+      setError(`Invalid matriculation number. Use the format ${MAT_NUMBER_HINT}.`);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/auth/request-otp", {
         method: "POST",
@@ -53,13 +59,15 @@ export function RequestOtpForm() {
       )}
       <div>
         <label className="label">Matriculation number</label>
-        <input
-          className="input"
-          value={matNumber}
-          onChange={(e) => setMat(e.target.value)}
-          placeholder="e.g. BMU/2021/001"
-          required
-        />
+          <input
+            className="input"
+            value={matNumber}
+            onChange={(e) => setMat(e.target.value)}
+            placeholder={MAT_NUMBER_HINT}
+            pattern="UG/\d{2}/\d{4}"
+            title={`Matriculation number must match the format ${MAT_NUMBER_HINT}.`}
+            required
+          />
       </div>
       <button type="submit" className="btn-primary w-full" disabled={loading}>
         {loading ? "Sending code…" : "Send verification code"}

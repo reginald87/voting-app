@@ -25,3 +25,11 @@ export const LEVELS = [
 export function formatName(first: string, last: string) {
   return `${first} ${last}`.trim();
 }
+
+// Matriculation number must look like UG/23/0045 (UG / two digits / four digits).
+export const MAT_NUMBER_PATTERN = /^UG\/\d{2}\/\d{4}$/;
+export const MAT_NUMBER_HINT = "e.g. UG/23/0045";
+
+export function isValidMatNumber(value: string) {
+  return MAT_NUMBER_PATTERN.test(value.trim());
+}

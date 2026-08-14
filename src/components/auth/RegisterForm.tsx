@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { DEPARTMENTS, LEVELS } from "@/lib/constants";
+import { DEPARTMENTS, LEVELS, isValidMatNumber, MAT_NUMBER_HINT } from "@/lib/constants";
 import { FaceCapture } from "./FaceCapture";
 import { registerAction } from "@/lib/actions/register";
 
@@ -39,8 +39,14 @@ export function RegisterForm() {
     setLoading(true);
     setError(null);
 
+    if (!isValidMatNumber(form.matNumber)) {
+      setError(`Invalid matriculation number. Use the format ${MAT_NUMBER_HINT}.`);
+      setLoading(false);
+      return;
+    }
+
     const data = new FormData();
-    data.set("matNumber", form.matNumber);
+    data.set("matNumber", form.matNumber.trim());
     data.set("email", form.email);
     data.set("firstName", form.firstName);
     data.set("lastName", form.lastName);
@@ -109,13 +115,15 @@ export function RegisterForm() {
 
       <div>
         <label className="label">Matriculation number</label>
-        <input
-          className="input"
-          value={form.matNumber}
-          onChange={(e) => set("matNumber", e.target.value)}
-          placeholder="e.g. BMU/2021/001"
-          required
-        />
+          <input
+            className="input"
+            value={form.matNumber}
+            onChange={(e) => set("matNumber", e.target.value)}
+            placeholder={MAT_NUMBER_HINT}
+            pattern="UG/\d{2}/\d{4}"
+            title={`Matriculation number must match the format ${MAT_NUMBER_HINT}.`}
+            required
+          />
       </div>
 
       <div>
