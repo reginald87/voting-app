@@ -265,7 +265,7 @@ export function AccreditationManager({
                 />
               )}
             </div>
-            <div className="border-t border-slate-200 p-3 text-center">
+            <div className="flex items-center justify-between gap-3 border-t border-slate-200 p-4">
               <a
                 href={preview.sugReceiptUrl || "#"}
                 target="_blank"
@@ -274,6 +274,30 @@ export function AccreditationManager({
               >
                 Open in new tab
               </a>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => setPreview(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={preview.accredited ? "btn-outline text-rose-600" : "btn-primary"}
+                  disabled={busy === preview.id}
+                  onClick={() => {
+                    toggle(preview);
+                    setPreview(null);
+                  }}
+                >
+                  {busy === preview.id
+                    ? "Working…"
+                    : preview.accredited
+                    ? "Revoke"
+                    : "Accredit"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
