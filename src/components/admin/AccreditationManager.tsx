@@ -171,7 +171,7 @@ export function AccreditationManager({
                   ) : null}
                   <button
                     className={v.accredited ? "btn-outline text-rose-600" : "btn-primary"}
-                    onClick={() => toggle(v)}
+                    onClick={() => setPreview(v)}
                     disabled={busy === v.id}
                   >
                     {v.accredited ? "Revoke" : "Accredit"}

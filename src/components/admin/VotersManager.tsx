@@ -27,6 +27,7 @@ export function VotersManager() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<VoterRow | null>(null);
+  const [preview, setPreview] = useState<VoterRow | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -191,14 +192,14 @@ export function VotersManager() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        className="btn-ghost px-3 py-1.5 text-xs"
-                        disabled={busyId === v.id}
-                        onClick={() => toggleAccredit(v)}
-                      >
-                        {v.accredited ? "Revoke" : "Accredit"}
-                      </button>
+                       <button
+                         type="button"
+                         className="btn-ghost px-3 py-1.5 text-xs"
+                         disabled={busyId === v.id}
+                         onClick={() => setPreview(v)}
+                       >
+                         {v.accredited ? "Revoke" : "Accredit"}
+                       </button>
                       <button
                         type="button"
                         className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
@@ -285,6 +286,79 @@ export function VotersManager() {
                 onClick={confirmDelete}
               >
                 {busyId === pendingDelete.id ? "Deleting…" : "Delete permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {preview && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-ink">
+                {preview.accredited ? "Revoke accreditation?" : "Accredit voter?"}
+              </h3>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setPreview(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-4 space-y-2 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm">
+              <p className="font-semibold text-ink">
+                {preview.firstName} {preview.lastName}
+              </p>
+              <p className="text-slate-600">
+                <span className="text-xs uppercase tracking-wide text-slate-400">Mat. No. </span>
+                <span className="font-mono">{preview.matNumber}</span>
+              </p>
+              <p className="text-slate-600">
+                <span className="text-xs uppercase tracking-wide text-slate-400">Email </span>
+                {preview.email}
+              </p>
+              <p className="text-slate-600">
+                <span className="text-xs uppercase tracking-wide text-slate-400">Dept / Level </span>
+                {preview.department} · {preview.level}
+              </p>
+              <p className="text-slate-600">
+                <span className="text-xs uppercase tracking-wide text-slate-400">Status </span>
+                <span className={`badge ${preview.accredited ? "badge-green" : "badge-amber"}`}>
+                  {preview.accredited ? "Accredited" : "Pending"}
+                </span>
+              </p>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setPreview(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={preview.accredited ? "btn-outline text-rose-600" : "btn-primary"}
+                disabled={busyId === preview.id}
+                onClick={() => {
+                  toggleAccredit(preview);
+                  setPreview(null);
+                }}
+              >
+                {busyId === preview.id
+                  ? "Working…"
+                  : preview.accredited
+                  ? "Revoke"
+                  : "Accredit"}
               </button>
             </div>
           </div>
