@@ -8,6 +8,9 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim() || "";
   const status = searchParams.get("status"); // "", "accredited", "pending"
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const pageSize = 20;
+  const skip = (page - 1) * pageSize;
 
   const where: any = {};
   if (q) {
@@ -21,29 +24,38 @@ export async function GET(req: Request) {
   if (status === "accredited") where.accredited = true;
   if (status === "pending") where.accredited = false;
 
-  const voters = await prisma.voter.findMany({
-    where,
-    orderBy: [{ accredited: "asc" }, { createdAt: "desc" }],
-    take: 200,
-    select: {
-      id: true,
-      matNumber: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      department: true,
-      level: true,
-      sugReceipt: true,
-      sugReceiptUrl: true,
-      accredited: true,
-      _count: { select: { votes: true } },
-    },
+  const [voters, total, accredited] = await Promise.all([
+    prisma.voter.findMany({
+      where,
+      orderBy: [{ accredited: "asc" }, { createdAt: "desc" }],
+      skip,
+      take: pageSize,
+      select: {
+        id: true,
+        matNumber: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        level: true,
+        sugReceipt: true,
+        sugReceiptUrl: true,
+        accredited: true,
+        _count: { select: { votes: true } },
+      },
+    }),
+    prisma.voter.count({ where }),
+    prisma.voter.count({ where: { accredited: true } }),
+  ]);
+
+  return NextResponse.json({
+    voters,
+    total,
+    accredited,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
   });
-
-  const total = await prisma.voter.count();
-  const accredited = await prisma.voter.count({ where: { accredited: true } });
-
-  return NextResponse.json({ voters, total, accredited });
 }
 
 export async function POST(req: Request) {

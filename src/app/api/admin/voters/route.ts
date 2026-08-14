@@ -4,13 +4,16 @@ import { requireAdminApi } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// List voters (searchable). Returns a light shape plus the number of votes
-// each voter has cast, so the UI can warn before deletion.
+// List voters (searchable, paginated). Returns a light shape plus the number
+// of votes each voter has cast, so the UI can warn before deletion.
 export async function GET(req: Request) {
   const admin = await requireAdminApi();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get("q") || "").trim();
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const pageSize = 20;
+  const skip = (page - 1) * pageSize;
 
   const where = q
     ? {
@@ -23,24 +26,28 @@ export async function GET(req: Request) {
       }
     : {};
 
-  const voters = await prisma.voter.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      matNumber: true,
-      email: true,
-      department: true,
-      level: true,
-      accredited: true,
-      faceEnrolled: true,
-      createdAt: true,
-      _count: { select: { votes: true } },
-    },
-  });
+  const [voters, total] = await Promise.all([
+    prisma.voter.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        matNumber: true,
+        email: true,
+        department: true,
+        level: true,
+        accredited: true,
+        faceEnrolled: true,
+        createdAt: true,
+        _count: { select: { votes: true } },
+      },
+    }),
+    prisma.voter.count({ where }),
+  ]);
 
   return NextResponse.json({
     voters: voters.map((v) => ({
@@ -56,6 +63,10 @@ export async function GET(req: Request) {
       createdAt: v.createdAt,
       voteCount: v._count.votes,
     })),
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
   });
 }
 

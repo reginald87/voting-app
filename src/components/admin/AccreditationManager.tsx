@@ -32,11 +32,14 @@ export function AccreditationManager({
   const [status, setStatus] = useState<"" | "accredited" | "pending">("");
   const [busy, setBusy] = useState<number | null>(null);
   const [preview, setPreview] = useState<Voter | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (status) params.set("status", status);
+    params.set("page", String(page));
     const res = await fetch(`/api/admin/accreditation?${params.toString()}`);
     if (res.status === 401) {
       window.location.href = "/admin/login";
@@ -47,7 +50,9 @@ export function AccreditationManager({
     setVoters(data.voters ?? []);
     setTotal(data.total ?? 0);
     setAccredited(data.accredited ?? 0);
-  }, [q, status]);
+    setTotalPages(data.totalPages ?? 1);
+    setPage(data.page ?? page);
+  }, [q, status, page]);
 
   useEffect(() => {
     const t = setTimeout(load, 250);
@@ -79,12 +84,18 @@ export function AccreditationManager({
           className="input"
           placeholder="Search by name, mat number or email…"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
         />
         <select
           className="input w-auto"
           value={status}
-          onChange={(e) => setStatus(e.target.value as any)}
+          onChange={(e) => {
+            setStatus(e.target.value as any);
+            setPage(1);
+          }}
         >
           <option value="">All voters</option>
           <option value="accredited">Accredited</option>
@@ -170,6 +181,34 @@ export function AccreditationManager({
             ))}
           </tbody>
         </table>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+          <p className="text-xs text-slate-400">
+            {total === 0
+              ? "No voters found."
+              : `Showing ${(page - 1) * 20 + 1}–${Math.min(page * 20, total)} of ${total}`}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn-outline px-3 py-1.5 text-xs"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </button>
+            <span className="text-xs text-slate-500">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              className="btn-outline px-3 py-1.5 text-xs"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
       <p className="mt-3 text-xs text-slate-400">
         Open “View receipt” to inspect the uploaded SUG dues receipt, then Accredit (or

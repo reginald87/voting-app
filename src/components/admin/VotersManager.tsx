@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Toast } from "@/components/Toast";
 
@@ -28,14 +28,21 @@ export function VotersManager() {
   const [toast, setToast] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<VoterRow | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  const stateRef = useRef({ q: "", page: 1 });
 
   const load = useCallback(async () => {
+    const { q: qq, page: p } = stateRef.current;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/voters?q=${encodeURIComponent(q)}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `/api/admin/voters?q=${encodeURIComponent(qq)}&page=${p}`,
+        { cache: "no-store" }
+      );
       if (res.status === 401) {
         router.push("/admin/login");
         return;
@@ -44,13 +51,21 @@ export function VotersManager() {
       const data = text ? JSON.parse(text) : {};
       if (!res.ok) throw new Error(data.error || "Failed to load voters.");
       setVoters(data.voters);
+      setPage(data.page || p);
+      setTotalPages(data.totalPages || 1);
+      setTotal(data.total || 0);
       setLoaded(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load voters.");
     } finally {
       setLoading(false);
     }
-  }, [q, router]);
+  }, [router]);
+
+  const search = () => {
+    stateRef.current = { q, page: 1 };
+    load();
+  };
 
   const toggleAccredit = async (v: VoterRow) => {
     setBusyId(v.id);
@@ -98,14 +113,22 @@ export function VotersManager() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") load();
+            if (e.key === "Enter") search();
           }}
         />
-        <button type="button" className="btn-primary" onClick={load} disabled={loading}>
+        <button type="button" className="btn-primary" onClick={search} disabled={loading}>
           {loading ? "Searching…" : "Search"}
         </button>
         {loaded && (
-          <button type="button" className="btn-outline" onClick={() => { setQ(""); }} >
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => {
+              setQ("");
+              stateRef.current = { q: "", page: 1 };
+              load();
+            }}
+          >
             Clear
           </button>
         )}
@@ -190,9 +213,42 @@ export function VotersManager() {
               ))}
             </tbody>
           </table>
-          <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-400">
-            Showing up to 200 matches. Use search to narrow results.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+            <p className="text-xs text-slate-400">
+              {total === 0
+                ? "No voters found."
+                : `Showing ${(page - 1) * 20 + 1}–${Math.min(page * 20, total)} of ${total}`}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="btn-outline px-3 py-1.5 text-xs"
+                disabled={page <= 1 || loading}
+                onClick={() => {
+                  const p = Math.max(1, page - 1);
+                  stateRef.current = { ...stateRef.current, page: p };
+                  load();
+                }}
+              >
+                Previous
+              </button>
+              <span className="text-xs text-slate-500">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn-outline px-3 py-1.5 text-xs"
+                disabled={page >= totalPages || loading}
+                onClick={() => {
+                  const p = Math.min(totalPages, page + 1);
+                  stateRef.current = { ...stateRef.current, page: p };
+                  load();
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
