@@ -15,10 +15,10 @@ export async function GET(req: Request) {
   const where = q
     ? {
         OR: [
-          { firstName: { contains: q, mode: "insensitive" as const } },
-          { lastName: { contains: q, mode: "insensitive" as const } },
-          { matNumber: { contains: q, mode: "insensitive" as const } },
-          { email: { contains: q, mode: "insensitive" as const } },
+          { firstName: { contains: q } },
+          { lastName: { contains: q } },
+          { matNumber: { contains: q } },
+          { email: { contains: q } },
         ],
       }
     : {};
