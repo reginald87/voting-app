@@ -37,9 +37,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Voter not found." }, { status: 404 });
   }
 
-  const result = await verifyOtp(voter.id, code);
-  if (!result.ok) {
-    return NextResponse.json({ error: result.reason }, { status: 401 });
+  let otpResult;
+  try {
+    otpResult = await verifyOtp(voter.id, code);
+  } catch {
+    return NextResponse.json(
+      { error: "Verification could not be completed. Please try again." },
+      { status: 503 }
+    );
+  }
+  if (!otpResult.ok) {
+    return NextResponse.json({ error: otpResult.reason }, { status: 401 });
   }
 
   if (await faceEnabled()) {
@@ -56,6 +64,13 @@ export async function POST(req: Request) {
     }
   }
 
-  await createVoterSession(voter.id);
+  try {
+    await createVoterSession(voter.id);
+  } catch {
+    return NextResponse.json(
+      { error: "Could not start your session. Please try again." },
+      { status: 503 }
+    );
+  }
   return NextResponse.json({ ok: true });
 }

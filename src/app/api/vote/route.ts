@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getVoter } from "@/lib/session";
 import { getVotingStatus } from "@/lib/election";
+import { withWriteLock } from "@/lib/voteQueue";
+
+const PRISMA_UNIQUE_ERR = "P2002";
 
 export async function POST(req: Request) {
   const voter = await getVoter();
@@ -50,41 +53,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unknown position." }, { status: 400 });
   }
 
-  const existing = await prisma.vote.findUnique({
-    where: { voterId_positionId: { voterId: voter.id, positionId } },
-    include: { position: true, aspirant: true },
-  });
-  if (existing) {
-    if (existing.abstained) {
-      return NextResponse.json(
-        {
-          alreadyVoted: true,
-          error: `You have already abstained in "${existing.position.title}". You cannot change this.`,
-        },
-        { status: 409 }
-      );
-    }
-    const candidateName = existing.aspirant
-      ? `${existing.aspirant.firstName} ${existing.aspirant.lastName}`
-      : "a candidate";
-    return NextResponse.json(
-      {
-        alreadyVoted: true,
-        error: `You have already voted in "${existing.position.title}" for ${candidateName}. You cannot vote again in this category.`,
-      },
-      { status: 409 }
-    );
-  }
-
   if (abstain) {
-    await prisma.vote.create({
-      data: { voterId: voter.id, positionId, aspirantId: null, abstained: true },
-    });
-    return NextResponse.json({
-      ok: true,
-      positionTitle: position.title,
-      abstained: true,
-    });
+    return finalizeVote(voter.id, positionId, position.title, null, true, null);
   }
 
   const aspirant = await prisma.aspirant.findUnique({
@@ -98,13 +68,100 @@ export async function POST(req: Request) {
     );
   }
 
-  await prisma.vote.create({
-    data: { voterId: voter.id, positionId, aspirantId: aspirant.id },
-  });
+  return finalizeVote(
+    voter.id,
+    positionId,
+    position.title,
+    aspirant.id,
+    false,
+    `${aspirant.firstName} ${aspirant.lastName}`
+  );
+}
 
-  return NextResponse.json({
-    ok: true,
-    positionTitle: aspirant.position.title,
-    candidate: `${aspirant.firstName} ${aspirant.lastName}`,
-  });
+async function finalizeVote(
+  voterId: number,
+  positionId: number,
+  positionTitle: string,
+  aspirantId: number | null,
+  abstain: boolean,
+  candidateName: string | null
+): Promise<NextResponse> {
+  try {
+    const vote = await withWriteLock(() =>
+      prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.vote.findUnique({
+            where: { voterId_positionId: { voterId, positionId } },
+            include: { position: true, aspirant: true },
+          });
+          if (existing) {
+            return { conflict: existing as any };
+          }
+          return tx.vote.create({
+            data: {
+              voterId,
+              positionId,
+              aspirantId,
+              abstained: abstain,
+            },
+          });
+        },
+        {
+          // Under heavy concurrency the serialized write queue + SQLite's
+          // busy_timeout (30s) can legitimately hold a transaction open far
+          // longer than Prisma's default 5s interactive timeout. If a queued
+          // transaction exceeds 5s it is killed with P2028 BEFORE committing,
+          // silently dropping the vote. Raise the timeout to match the DB-level
+          // wait so queued writers aren't killed mid-flight.
+          timeout: 30000,
+        }
+      )
+    );
+
+    if ("conflict" in (vote ?? {})) {
+      const existing = (vote as any).conflict;
+      const votedFor = existing.aspirant
+        ? `${existing.aspirant.firstName} ${existing.aspirant.lastName}`
+        : "a candidate";
+      return NextResponse.json(
+        {
+          alreadyVoted: true,
+          error:
+            existing.abstained
+              ? `You have already abstained in "${existing.position.title}". You cannot change this.`
+              : `You have already voted in "${existing.position.title}" for ${votedFor}. You cannot vote again in this category.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      positionTitle,
+      abstained: abstain,
+      candidate: candidateName,
+    });
+  } catch (err: any) {
+    // The unique constraint is the DB-level backstop against a concurrent
+    // double-submit racing past the check above. Turn it into a graceful 409.
+    if (
+      err &&
+      (err.code === PRISMA_UNIQUE_ERR ||
+        err.message?.includes("Unique constraint"))
+    ) {
+      return NextResponse.json(
+        {
+          alreadyVoted: true,
+          error:
+            "Your vote in this category was already recorded. You cannot vote again.",
+        },
+        { status: 409 }
+      );
+    }
+    console.error("[vote] record failed:", err?.code, err?.message, JSON.stringify(err?.meta));
+    return NextResponse.json(
+      { error: "Your vote could not be recorded. Please try again." },
+      { status: 500 }
+    );
+  }
 }

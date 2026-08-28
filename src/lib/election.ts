@@ -8,6 +8,9 @@ export interface VotingStatus {
 }
 
 export async function getSettings() {
+  const existing = await prisma.setting.findUnique({ where: { id: 1 } });
+  if (existing) return existing;
+  // Only create if the singleton row is missing (race-guarded with upsert).
   return prisma.setting.upsert({
     where: { id: 1 },
     update: {},

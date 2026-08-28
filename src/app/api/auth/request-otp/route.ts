@@ -30,11 +30,17 @@ export async function POST(req: Request) {
     );
   }
 
-  const { emailSent, code, emailError, throttled } = await issueOtp(
-    voter.id,
-    voter.email,
-    voter.firstName
-  );
+  let result;
+  try {
+    result = await issueOtp(voter.id, voter.email, voter.firstName);
+  } catch {
+    return NextResponse.json(
+      { error: "Could not send your code right now. Please try again." },
+      { status: 503 }
+    );
+  }
+
+  const { emailSent, code, emailError, throttled } = result;
 
   if (throttled) {
     return NextResponse.json(
