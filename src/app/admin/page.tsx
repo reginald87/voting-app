@@ -3,19 +3,22 @@ import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSettings, getVotingStatus, getAllPeriods } from "@/lib/election";
 import { ClearVotesCard } from "@/components/admin/ClearVotesCard";
+import { ClearSessionsCard } from "@/components/admin/ClearSessionsCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
   await requireAdmin();
 
-  const [totalVoters, accredited, votes, positions, aspirants] = await Promise.all([
-    prisma.voter.count(),
-    prisma.voter.count({ where: { accredited: true } }),
-    prisma.vote.count(),
-    prisma.position.count(),
-    prisma.aspirant.count(),
-  ]);
+  const [totalVoters, accredited, votes, positions, aspirants, sessions] =
+    await Promise.all([
+      prisma.voter.count(),
+      prisma.voter.count({ where: { accredited: true } }),
+      prisma.vote.count(),
+      prisma.position.count(),
+      prisma.aspirant.count(),
+      prisma.session.count(),
+    ]);
 
   const status = await getVotingStatus();
   const settings = await getSettings();
@@ -29,6 +32,7 @@ export default async function AdminDashboard() {
     { label: "Votes cast", value: votes },
     { label: "Positions", value: positions },
     { label: "Aspirants", value: aspirants },
+    { label: "Active sessions", value: sessions },
   ];
 
   return (
@@ -63,7 +67,7 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {stats.map((s) => (
           <div key={s.label} className="card p-5">
             <p className="text-3xl font-bold text-ink">{s.value}</p>
@@ -133,6 +137,10 @@ export default async function AdminDashboard() {
 
       <div className="mt-6 max-w-md">
         <ClearVotesCard currentVotes={votes} />
+      </div>
+
+      <div className="mt-6 max-w-md">
+        <ClearSessionsCard activeSessions={sessions} />
       </div>
     </div>
   );
