@@ -51,7 +51,17 @@ export default async function AdminIpAuditPage() {
         </div>
       </div>
 
-      <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      <div className="mt-6 flex justify-end">
+        <a
+          href="/api/admin/ip-audit?format=csv"
+          className="btn-outline"
+          download="ip-audit.csv"
+        >
+          Export CSV
+        </a>
+      </div>
+
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
@@ -69,21 +79,17 @@ export default async function AdminIpAuditPage() {
               </tr>
             ) : (
               withNull.map((row) => (
-                <tr key={row.ip} className="border-t border-slate-100">
+                <tr key={row.ip} className="border-t border-slate-100 align-top">
                   <td className="px-4 py-3 font-mono text-slate-700">{row.ip}</td>
                   <td className="px-4 py-3 font-medium text-ink">{row.votes}</td>
                   <td className="px-4 py-3 text-slate-600">
-                    {row.voters.length > 5 ? (
-                      <span>{row.voters.length} voters</span>
-                    ) : (
-                      <span className="flex flex-wrap gap-1">
-                        {row.voters.map((v) => (
-                          <span key={v.matNumber} className="badge-slate">
-                            {v.matNumber}
-                          </span>
-                        ))}
-                      </span>
-                    )}
+                    <div className="flex flex-wrap gap-1">
+                      {row.voters.map((v) => (
+                        <span key={v.matNumber} className="badge-slate whitespace-nowrap">
+                          {v.matNumber} · {v.firstName} {v.lastName}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                 </tr>
               ))
