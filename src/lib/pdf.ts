@@ -111,6 +111,26 @@ export function reportToPdf(report: Report): Promise<Buffer> {
       doc.moveDown(0.6);
     }
 
+    // Per-voter accreditation vs votes
+    doc.addPage();
+    doc.fontSize(13).fillColor(ink).text("Accreditation vs Votes Cast (per voter)");
+    doc.moveDown(0.3);
+    const voterRows: (string | number)[][] = report.voters.map((v) => [
+      v.matNumber,
+      v.name,
+      v.department,
+      v.level,
+      v.accredited ? "Yes" : "No",
+      v.votesCast,
+    ]);
+    drawTable(
+      doc,
+      ["Mat Number", "Name", "Department", "Level", "Accredited", "Votes Cast"],
+      [75, 125, 90, 55, 60, 60],
+      voterRows,
+      [ink, ink, ink]
+    );
+
     doc.end();
   });
 }

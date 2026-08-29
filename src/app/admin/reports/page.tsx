@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { requireAdmin } from "@/lib/session";
 import { buildReport } from "@/lib/report";
+import { VotersReportTable } from "@/components/admin/VotersReportTable";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +46,18 @@ export default async function AdminReportsPage() {
           <a href="/api/admin/reports?format=pdf" className="btn-outline">
             Download PDF
           </a>
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-ink">Voters: accreditation vs votes cast</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Per-voter accreditation status and number of votes cast.
+        </p>
+        <div className="mt-4">
+          <Suspense fallback={<div className="text-sm text-slate-500">Loading voters…</div>}>
+            <VotersReportTable voters={report.voters} />
+          </Suspense>
         </div>
       </div>
 
