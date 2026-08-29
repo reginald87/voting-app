@@ -20,6 +20,14 @@ function VerifyOtpInner() {
   const [faceEnabled, setFaceEnabled] = useState(false);
   const [faceTemplate, setFaceTemplate] = useState<number[] | null>(null);
 
+  // The dev code is only put on the URL by the dev flow. Never render it on
+  // a non-local hostname (defense in depth against a forged ?dev= param).
+  const isLocalHost =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1");
+  const showDevOtp = dev && isLocalHost;
+
   useEffect(() => {
     fetch("/api/public/content")
       .then((r) => (r.ok ? r.json() : null))
@@ -69,7 +77,7 @@ function VerifyOtpInner() {
       {error && (
         <div className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
       )}
-      {dev && (
+      {showDevOtp && (
         <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Dev mode: your verification code is{" "}
           <span className="font-bold tracking-widest">{dev}</span>. Set SMTP_* in{" "}

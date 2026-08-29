@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSettings, getVotingStatus, getAllPeriods } from "@/lib/election";
+import { ClearVotesCard } from "@/components/admin/ClearVotesCard";
 
 export const dynamic = "force-dynamic";
 
@@ -128,6 +129,10 @@ export default async function AdminDashboard() {
             </Link>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6 max-w-md">
+        <ClearVotesCard currentVotes={votes} />
       </div>
     </div>
   );

@@ -43,6 +43,7 @@ export function Ballot({
   const [done, setDone] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [sessionFinished, setSessionFinished] = useState(false);
 
   async function cast(positionId: number, aspirantId?: number) {
     setBusy(positionId);
@@ -63,6 +64,11 @@ export function Ballot({
           ...d,
           [positionId]: data.abstained ? "Abstained" : data.candidate,
         }));
+        if (data.completed) {
+          setToast("You have voted in every position. You are now signed out.");
+          setSessionFinished(true);
+          return;
+        }
         setToast(
           data.abstained
             ? "Your abstention was recorded."
@@ -79,6 +85,25 @@ export function Ballot({
     } finally {
       setBusy(null);
     }
+  }
+
+  if (sessionFinished) {
+    return (
+      <div className="card p-8 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          ✓
+        </div>
+        <h2 className="text-lg font-bold text-ink">Thank you for voting</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+          You have voted in every position. Your ballot has been securely recorded
+          and you have been signed out. You may keep this page open or close the
+          browser.
+        </p>
+        <Link href="/" className="btn-primary mt-5">
+          Back to home
+        </Link>
+      </div>
+    );
   }
 
   if (!accredited || !statusOpen) {

@@ -33,11 +33,14 @@ export function RequestOtpForm() {
         setLoading(false);
         return;
       }
+      // devOtp is only ever provided when not running in production (and SMTP
+      // is unset), so it is safe to surface locally for testing. In production
+      // the API never returns the code and returns a 503 instead.
       if (data.devOtp) setDevOtp(data.devOtp);
       router.push(
         `/verify-otp?mat=${encodeURIComponent(data.matNumber)}&email=${encodeURIComponent(
           data.email
-        )}${data.devOtp ? `&dev=${data.devOtp}` : ""}`
+        )}`
       );
     } catch {
       setError("Network error. Please try again.");

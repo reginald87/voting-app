@@ -133,11 +133,29 @@ export async function registerAction(formData: FormData) {
     }
   }
 
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!emailSent) {
+    // Never reveal the OTP to the client in production. Surface a generic
+    // error instead so an attacker cannot read the code off the screen.
+    if (isProduction) {
+      console.error(
+        "[registerAction] email delivery failed for", voter.matNumber, ":", emailError
+      );
+      return {
+        error:
+          "Your account was created, but we could not deliver your verification code by email. Please try signing in again shortly.",
+      };
+    }
+  }
+
   return {
     ok: true as const,
     matNumber: voter.matNumber,
     email: voter.email,
     emailSent,
-    devOtp: emailSent ? undefined : code,
+    // Dev convenience only: expose the code on screen when SMTP is unset.
+    // Must never be surfaced in production.
+    devOtp: !isProduction && !emailSent ? code : undefined,
   };
 }

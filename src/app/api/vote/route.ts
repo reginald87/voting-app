@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getVoter } from "@/lib/session";
+import { getVoter, destroyVoterSession } from "@/lib/session";
 import { getVotingStatus } from "@/lib/election";
 import { withWriteLock } from "@/lib/voteQueue";
 
@@ -135,11 +135,27 @@ async function finalizeVote(
       );
     }
 
+    let allPositionsVoted = false;
+    try {
+      const [voteCount, positionCount] = await Promise.all([
+        prisma.vote.count({ where: { voterId } }),
+        prisma.position.count(),
+      ]);
+      allPositionsVoted = voteCount >= positionCount && positionCount > 0;
+    } catch (err) {
+      console.error("[vote] completed check failed:", err);
+    }
+
+    if (allPositionsVoted) {
+      await destroyVoterSession();
+    }
+
     return NextResponse.json({
       ok: true,
       positionTitle,
       abstained: abstain,
       candidate: candidateName,
+      completed: allPositionsVoted,
     });
   } catch (err: any) {
     // The unique constraint is the DB-level backstop against a concurrent

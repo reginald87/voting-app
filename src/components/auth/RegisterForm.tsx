@@ -79,7 +79,7 @@ export function RegisterForm() {
       router.push(
         `/verify-otp?mat=${encodeURIComponent(result.matNumber)}&email=${encodeURIComponent(
           result.email
-        )}${result.devOtp ? `&dev=${result.devOtp}` : ""}&new=1`
+        )}&new=1`
       );
     } catch {
       setError("Network error. Please try again.");

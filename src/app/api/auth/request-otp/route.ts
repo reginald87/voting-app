@@ -49,11 +49,30 @@ export async function POST(req: Request) {
     );
   }
 
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!emailSent) {
+    // Never reveal the OTP to the client in production. If email delivery
+    // fails there, surface a generic error so an attacker who knows/guesses a
+    // mat number cannot trivially read the code off the screen.
+    if (isProduction) {
+      console.error(
+        "[request-otp] email delivery failed for", voter.matNumber, ":", emailError
+      );
+      return NextResponse.json(
+        { error: "We could not deliver your verification code by email. Please try again shortly." },
+        { status: 503 }
+      );
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     matNumber: voter.matNumber,
     email: voter.email,
     emailSent,
-    devOtp: emailSent ? undefined : code,
+    // Dev convenience only: expose the code on screen when SMTP is unset.
+    // The API and the UI must never surface it in production.
+    devOtp: !isProduction && !emailSent ? code : undefined,
   });
 }
