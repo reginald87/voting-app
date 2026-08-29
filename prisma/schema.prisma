@@ -85,6 +85,7 @@ model Vote {
   aspirantId  Int?
   aspirant    Aspirant? @relation(fields: [aspirantId], references: [id], onDelete: Cascade)
   abstained   Boolean   @default(false)
+  ip          String?
   createdAt   DateTime  @default(now())
 
   @@unique([voterId, positionId])

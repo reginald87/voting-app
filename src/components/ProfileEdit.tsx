@@ -119,7 +119,7 @@ export function ProfileEdit({ voter }: { voter: ProfileSeed }) {
           {voter.accredited ? (
             <span className="badge-green">✓ Accredited</span>
           ) : (
-            <span className="badge-amber">Pending accreditation</span>
+            <span className="badge-amber">Not accredited</span>
           )}
           {voter.faceEnrolled && <span className="badge-slate">Face enrolled</span>}
         </div>

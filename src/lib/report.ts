@@ -140,7 +140,7 @@ export function reportToCsv(report: Report): string {
   const s = report.summary;
   lines.push(["Total Registered Voters", s.totalRegistered].map(csvCell).join(","));
   lines.push(["Accredited Voters", s.accredited].map(csvCell).join(","));
-  lines.push(["Pending Accreditation", s.pending].map(csvCell).join(","));
+  lines.push(["Not Accredited", s.pending].map(csvCell).join(","));
   lines.push(["Total Votes Cast", s.totalVotes].map(csvCell).join(","));
   lines.push(["Positions", s.positions].map(csvCell).join(","));
   lines.push(["Aspirants", s.aspirants].map(csvCell).join(","));

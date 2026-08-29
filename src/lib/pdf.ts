@@ -41,7 +41,7 @@ export function reportToPdf(report: Report): Promise<Buffer> {
     const summaryRows: [string, string][] = [
       ["Total Registered Voters", String(s.totalRegistered)],
       ["Accredited Voters", String(s.accredited)],
-      ["Pending Accreditation", String(s.pending)],
+      ["Not Accredited", String(s.pending)],
       ["Total Votes Cast", String(s.totalVotes)],
       ["Positions", String(s.positions)],
       ["Aspirants", String(s.aspirants)],
@@ -58,7 +58,7 @@ export function reportToPdf(report: Report): Promise<Buffer> {
     doc.moveDown(0.3);
     const accRows: [string, string, string][] = [
       ["Accredited voters", String(s.accredited), `${pct(s.accredited, s.totalRegistered)}%`],
-      ["Pending accreditation", String(s.pending), `${pct(s.pending, s.totalRegistered)}%`],
+      ["Not accredited", String(s.pending), `${pct(s.pending, s.totalRegistered)}%`],
       ["Total votes cast", String(s.totalVotes), `${pct(s.totalVotes, s.accredited || 1)}% of accredited`],
     ];
     drawTable(

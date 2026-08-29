@@ -99,7 +99,7 @@ export function AccreditationManager({
         >
           <option value="">All voters</option>
           <option value="accredited">Accredited</option>
-          <option value="pending">Pending</option>
+          <option value="pending">Not accredited</option>
         </select>
       </div>
 
@@ -111,7 +111,7 @@ export function AccreditationManager({
           Accredited: <b className="text-emerald-600">{accredited}</b>
         </span>
         <span className="text-slate-500">
-          Pending: <b className="text-amber-600">{total - accredited}</b>
+          Not accredited: <b className="text-amber-600">{total - accredited}</b>
         </span>
       </div>
 

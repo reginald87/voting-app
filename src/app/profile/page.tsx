@@ -103,7 +103,7 @@ export default async function ProfilePage() {
                     !voter.accredited || !status.open ? "pointer-events-none opacity-60" : ""
                   }`}
                 >
-                  {voter.accredited ? "Go to ballot" : "Awaiting accreditation"}
+                  {voter.accredited ? "Go to ballot" : "Not accredited"}
                 </Link>
               </div>
             ) : (

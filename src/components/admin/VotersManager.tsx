@@ -187,7 +187,7 @@ export function VotersManager() {
                   <td className="px-4 py-3 text-slate-600">{v.email}</td>
                   <td className="px-4 py-3">
                     <span className={`badge ${v.accredited ? "badge-green" : "badge-amber"}`}>
-                      {v.accredited ? "Accredited" : "Pending"}
+                      {v.accredited ? "Accredited" : "Not accredited"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -333,7 +333,7 @@ export function VotersManager() {
               <p className="text-slate-600">
                 <span className="text-xs uppercase tracking-wide text-slate-400">Status </span>
                 <span className={`badge ${preview.accredited ? "badge-green" : "badge-amber"}`}>
-                  {preview.accredited ? "Accredited" : "Pending"}
+                  {preview.accredited ? "Accredited" : "Not accredited"}
                 </span>
               </p>
             </div>

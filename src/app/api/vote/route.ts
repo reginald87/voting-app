@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getVoter, destroyVoterSession } from "@/lib/session";
 import { getVotingStatus } from "@/lib/election";
 import { withWriteLock } from "@/lib/voteQueue";
+import { getClientIp } from "@/lib/ip";
 
 const PRISMA_UNIQUE_ERR = "P2002";
 
@@ -17,6 +18,8 @@ export async function POST(req: Request) {
       { status: 403 }
     );
   }
+
+  const ip = getClientIp(req);
 
   const status = await getVotingStatus();
   if (!status.open) {
@@ -54,7 +57,7 @@ export async function POST(req: Request) {
   }
 
   if (abstain) {
-    return finalizeVote(voter.id, positionId, position.title, null, true, null);
+    return finalizeVote(voter.id, positionId, position.title, null, true, null, ip);
   }
 
   const aspirant = await prisma.aspirant.findUnique({
@@ -74,7 +77,8 @@ export async function POST(req: Request) {
     position.title,
     aspirant.id,
     false,
-    `${aspirant.firstName} ${aspirant.lastName}`
+    `${aspirant.firstName} ${aspirant.lastName}`,
+    ip
   );
 }
 
@@ -84,7 +88,8 @@ async function finalizeVote(
   positionTitle: string,
   aspirantId: number | null,
   abstain: boolean,
-  candidateName: string | null
+  candidateName: string | null,
+  ip: string | null
 ): Promise<NextResponse> {
   try {
     const vote = await withWriteLock(() =>
@@ -103,6 +108,7 @@ async function finalizeVote(
               positionId,
               aspirantId,
               abstained: abstain,
+              ip,
             },
           });
         },
