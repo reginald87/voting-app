@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
 import { NavBar } from "@/components/NavBar";
 import { NavVisibility } from "@/components/NavVisibility";
@@ -40,13 +39,6 @@ export default async function RootLayout({
               <p className="text-slate-400">
                 {content.footerText || "Secure · Transparent · Credible Elections"}
               </p>
-              <Link
-                href="/admin/login"
-                className="text-xs text-slate-300 transition hover:text-slate-500"
-                aria-label="Electoral commission admin login"
-              >
-                Admin
-              </Link>
             </div>
           </div>
         </footer>
