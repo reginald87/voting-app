@@ -1,17 +1,44 @@
 import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { PaginationControls } from "@/components/admin/PaginationControls";
 
 export const dynamic = "force-dynamic";
+
+const VOTER_PAGE_SIZE = 50;
+const PROOF_PAGE_SIZE = 25;
 
 const dtf = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "medium",
   timeStyle: "short",
 });
 
-export default async function AdminFaceAuditPage() {
+function clampPage(raw: number, totalPages: number) {
+  return Math.min(Math.max(1, raw || 1), Math.max(1, totalPages));
+}
+
+export default async function AdminFaceAuditPage({
+  searchParams,
+}: {
+  searchParams: { vp?: string; pp?: string };
+}) {
   await requireAdmin();
 
-  const [voters, enrolledCount, voteDeltas, voteProofs] = await Promise.all([
+  const [totalVoters, enrolledCount, voteDeltas, totalProofs] = await Promise.all([
+    prisma.voter.count(),
+    prisma.voter.count({ where: { faceEnrolled: true } }),
+    prisma.vote.groupBy({ by: ["voterId"], _count: { voterId: true } }),
+    prisma.vote.count({ where: { faceProof: { not: null } } }),
+  ]);
+
+  const voterTotalPages = Math.max(
+    1,
+    Math.ceil(totalVoters / VOTER_PAGE_SIZE)
+  );
+  const proofTotalPages = Math.max(1, Math.ceil(totalProofs / PROOF_PAGE_SIZE));
+  const vPage = clampPage(Number(searchParams.vp), voterTotalPages);
+  const pPage = clampPage(Number(searchParams.pp), proofTotalPages);
+
+  const [voters, voteProofs] = await Promise.all([
     prisma.voter.findMany({
       select: {
         id: true,
@@ -24,10 +51,9 @@ export default async function AdminFaceAuditPage() {
         faceImageUrl: true,
       },
       orderBy: [{ faceEnrolled: "desc" }, { matNumber: "asc" }],
-      take: 1000,
+      skip: (vPage - 1) * VOTER_PAGE_SIZE,
+      take: VOTER_PAGE_SIZE,
     }),
-    prisma.voter.count({ where: { faceEnrolled: true } }),
-    prisma.vote.groupBy({ by: ["voterId"], _count: { voterId: true } }),
     prisma.vote.findMany({
       where: { faceProof: { not: null } },
       include: {
@@ -36,14 +62,25 @@ export default async function AdminFaceAuditPage() {
         aspirant: { select: { firstName: true, lastName: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 500,
+      skip: (pPage - 1) * PROOF_PAGE_SIZE,
+      take: PROOF_PAGE_SIZE,
     }),
   ]);
 
   const votesPerVoter = new Map(
     voteDeltas.map((v) => [v.voterId, v._count.voterId])
   );
-  const totalVoters = voters.length;
+
+  const votersBase = (() => {
+    const sp = new URLSearchParams(searchParams);
+    sp.delete("vp");
+    return sp.toString();
+  })();
+  const proofsBase = (() => {
+    const sp = new URLSearchParams(searchParams);
+    sp.delete("pp");
+    return sp.toString();
+  })();
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -137,6 +174,12 @@ export default async function AdminFaceAuditPage() {
           </tbody>
         </table>
       </div>
+      <PaginationControls
+        page={vPage}
+        totalPages={voterTotalPages}
+        param="vp"
+        base={votersBase}
+      />
 
       <div className="mt-10">
         <h2 className="text-lg font-bold text-ink">Who voted (face-verified)</h2>
@@ -200,6 +243,12 @@ export default async function AdminFaceAuditPage() {
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          page={pPage}
+          totalPages={proofTotalPages}
+          param="pp"
+          base={proofsBase}
+        />
       </div>
     </div>
   );

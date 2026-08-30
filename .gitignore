@@ -21,8 +21,11 @@ yarn-error.log*
 # database
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 prisma/dev.db
 prisma/migrations/dev.db
+tsconfig.tsbuildinfo
 
 # runtime / logs
 server.log

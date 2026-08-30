@@ -29,6 +29,14 @@ export function VotersManager() {
   const [pendingDelete, setPendingDelete] = useState<VoterRow | null>(null);
   const [preview, setPreview] = useState<VoterRow | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [issuingId, setIssuingId] = useState<number | null>(null);
+  const [codeModal, setCodeModal] = useState<{
+    name: string;
+    matNumber: string;
+    code: string;
+    expiresAt: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -85,6 +93,31 @@ export function VotersManager() {
       setError("Could not update accreditation.");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const issueCode = async (v: VoterRow) => {
+    setIssuingId(v.id);
+    setError(null);
+    setCopied(false);
+    try {
+      const res = await fetch("/api/admin/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voterId: v.id, matNumber: v.matNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not issue a code.");
+      setCodeModal({
+        name: data.name,
+        matNumber: data.matNumber,
+        code: data.code,
+        expiresAt: data.expiresAt,
+      });
+    } catch {
+      setError("Could not issue verification code.");
+    } finally {
+      setIssuingId(null);
     }
   };
 
@@ -206,6 +239,14 @@ export function VotersManager() {
                        >
                          {v.accredited ? "Revoke" : "Accredit"}
                        </button>
+                      <button
+                        type="button"
+                        className="btn-ghost px-3 py-1.5 text-xs"
+                        disabled={busyId === v.id || issuingId === v.id}
+                        onClick={() => issueCode(v)}
+                      >
+                        {issuingId === v.id ? "Issuing…" : "Code"}
+                      </button>
                       <button
                         type="button"
                         className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
@@ -365,6 +406,66 @@ export function VotersManager() {
                   : preview.accredited
                   ? "Revoke"
                   : "Accredit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {codeModal && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setCodeModal(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-ink">One-time verification code</h3>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setCodeModal(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-slate-600">
+              Relay this code to{" "}
+              <span className="font-semibold text-ink">
+                {codeModal.name} ({codeModal.matNumber})
+              </span>{" "}
+              by phone or WhatsApp. The voter enters it with their mat number at login —
+              no email needed. Any earlier unused code for this voter is now invalid.
+            </p>
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <span className="font-mono text-3xl font-bold tracking-widest text-ink">
+                {codeModal.code}
+              </span>
+              <button
+                type="button"
+                className="btn-outline whitespace-nowrap"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(codeModal.code);
+                    setCopied(true);
+                  } catch {
+                    setError("Could not copy the code.");
+                  }
+                }}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              Expires at {new Date(codeModal.expiresAt).toLocaleTimeString()}.
+              The code is usable even if the voter&apos;s email inbox is unreachable.
+            </p>
+            <div className="mt-5 flex justify-end">
+              <button type="button" className="btn-primary" onClick={() => setCodeModal(null)}>
+                Done
               </button>
             </div>
           </div>

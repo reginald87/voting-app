@@ -72,3 +72,22 @@ export async function verifyOtp(
   await prisma.otp.update({ where: { id: otp.id }, data: { used: true } });
   return { ok: true };
 }
+
+/**
+ * Generate an OTP for a voter WITHOUT sending email. Used by admins to issue a
+ * code manually (relayed by phone/WhatsApp) so voting is never blocked by an
+ * SMTP provider's daily cap or non-delivery.
+ */
+export async function issueOtpAdmin(
+  voterId: number
+): Promise<{ code: string; expiresAt: Date }> {
+  // Invalidate any previous unused codes so there is exactly one live code.
+  await prisma.otp.updateMany({
+    where: { voterId, used: false },
+    data: { used: true },
+  });
+  const code = makeOtp();
+  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+  await prisma.otp.create({ data: { voterId, code, expiresAt } });
+  return { code, expiresAt };
+}

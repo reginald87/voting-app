@@ -1,9 +1,20 @@
 import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { PaginationControls } from "@/components/admin/PaginationControls";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminIpAuditPage() {
+const PAGE_SIZE = 50;
+
+function clampPage(raw: number, totalPages: number) {
+  return Math.min(Math.max(1, raw || 1), Math.max(1, totalPages));
+}
+
+export default async function AdminIpAuditPage({
+  searchParams,
+}: {
+  searchParams: { page?: string };
+}) {
   await requireAdmin();
 
   // Votes: candidate/IP/voter linkage. Sessions: login/IP/voter linkage.
@@ -83,6 +94,15 @@ export default async function AdminIpAuditPage() {
   const totalSessionRows = sessionRows.filter((s) => s.ip).length;
   const flagged = rows.filter((r) => r.accountCount > 1);
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const page = clampPage(Number(searchParams.page), totalPages);
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const base = (() => {
+    const sp = new URLSearchParams(searchParams);
+    sp.delete("page");
+    return sp.toString();
+  })();
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <h1 className="text-2xl font-bold text-ink">IP Audit</h1>
@@ -141,7 +161,7 @@ export default async function AdminIpAuditPage() {
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
+              pageRows.map((row) => (
                 <tr
                   key={row.ip}
                   className={`border-t border-slate-100 align-top ${
@@ -173,6 +193,12 @@ export default async function AdminIpAuditPage() {
           </tbody>
         </table>
       </div>
+      <PaginationControls
+        page={page}
+        totalPages={totalPages}
+        param="page"
+        base={base}
+      />
     </div>
   );
 }

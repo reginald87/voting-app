@@ -2,8 +2,15 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isValidMatNumber } from "@/lib/constants";
+import { PaginationControls } from "@/components/admin/PaginationControls";
 
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 25;
+
+function clampPage(raw: number, totalPages: number) {
+  return Math.min(Math.max(1, raw || 1), Math.max(1, totalPages));
+}
 
 const dtf = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "medium",
@@ -13,7 +20,7 @@ const dtf = new Intl.DateTimeFormat("en-GB", {
 export default async function AdminVoterActivityPage({
   searchParams,
 }: {
-  searchParams: { mat?: string };
+  searchParams: { mat?: string; epage?: string };
 }) {
   await requireAdmin();
 
@@ -93,6 +100,15 @@ export default async function AdminVoterActivityPage({
   }
   events.sort((a, b) => b.at.getTime() - a.at.getTime());
 
+  const totalPages = Math.max(1, Math.ceil(events.length / PAGE_SIZE));
+  const page = clampPage(Number(searchParams.epage), totalPages);
+  const pageEvents = events.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const base = (() => {
+    const sp = new URLSearchParams(searchParams);
+    sp.delete("epage");
+    return sp.toString();
+  })();
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <h1 className="text-2xl font-bold text-ink">Voter Activity</h1>
@@ -147,12 +163,12 @@ export default async function AdminVoterActivityPage({
           </div>
 
           <div className="mt-4 space-y-3">
-            {events.length === 0 && (
+            {pageEvents.length === 0 && (
               <div className="card p-8 text-center text-slate-400">
                 No recorded activity for this voter.
               </div>
             )}
-            {events.map((ev, i) => (
+            {pageEvents.map((ev, i) => (
               <div
                 key={i}
                 className="card flex items-start gap-4 p-4 sm:items-center"
@@ -184,6 +200,12 @@ export default async function AdminVoterActivityPage({
               </div>
             ))}
           </div>
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            param="epage"
+            base={base}
+          />
         </div>
       )}
 
