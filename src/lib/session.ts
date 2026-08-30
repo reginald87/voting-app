@@ -28,11 +28,22 @@ function unsign(signed: string | undefined): string | null {
   return mismatch === 0 ? value : null;
 }
 
-export async function createVoterSession(voterId: number, faceProof?: string | null) {
+export async function createVoterSession(
+  voterId: number,
+  faceProof?: string | null,
+  ip?: string | null
+) {
   const id = randomBytes(24).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
   await prisma.session.create({
-    data: { id, voterId, expiresAt, faceProof: faceProof ?? null, faceVerifiedAt: faceProof ? new Date() : null },
+    data: {
+      id,
+      voterId,
+      expiresAt,
+      ip: ip ?? null,
+      faceProof: faceProof ?? null,
+      faceVerifiedAt: faceProof ? new Date() : null,
+    },
   });
   cookies().set(SESSION_COOKIE, id, {
     httpOnly: true,

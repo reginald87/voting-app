@@ -192,6 +192,12 @@ export function VotersManager() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
+                      <a
+                        href={`/admin/voter-activity?mat=${encodeURIComponent(v.matNumber)}`}
+                        className="btn-ghost px-3 py-1.5 text-xs"
+                      >
+                        Activity
+                      </a>
                        <button
                          type="button"
                          className="btn-ghost px-3 py-1.5 text-xs"

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyOtp } from "@/lib/otp";
 import { createVoterSession } from "@/lib/session";
+import { getClientIp } from "@/lib/ip";
 import { faceEnabled, enrollFace, matchFace } from "@/lib/face";
 import { proofHashFromRaw } from "@/lib/biometric";
 import { saveFaceImage } from "@/lib/faceImage";
@@ -97,7 +98,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    await createVoterSession(voter.id, faceProof);
+    const clientIp = getClientIp(req);
+    await createVoterSession(voter.id, faceProof, clientIp);
   } catch {
     return NextResponse.json(
       { error: "Could not start your session. Please try again." },

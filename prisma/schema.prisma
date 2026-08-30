@@ -43,6 +43,7 @@ model Session {
   id        String   @id
   voterId   Int
   voter     Voter    @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  ip        String?
   expiresAt DateTime
   faceProof String?
   faceVerifiedAt DateTime?

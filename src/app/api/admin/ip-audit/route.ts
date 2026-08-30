@@ -18,37 +18,49 @@ export async function GET(req: Request) {
   const format = url.searchParams.get("format");
 
   if (format === "csv") {
-    const rows = await prisma.vote.groupBy({
-      by: ["ip"],
-      _count: { ip: true },
-      orderBy: { _count: { ip: "desc" } },
-    });
+    const [voteRows, sessionRows] = await Promise.all([
+      prisma.vote.findMany({ select: { ip: true, voterId: true } }),
+      prisma.session.findMany({ select: { ip: true, voterId: true } }),
+    ]);
+
+    const byIp = new Map<
+      string,
+      { votes: number; logins: number; voters: Set<number> }
+    >();
+    for (const v of voteRows) {
+      if (!v.ip) continue;
+      const e = byIp.get(v.ip) || { votes: 0, logins: 0, voters: new Set() };
+      e.votes++;
+      e.voters.add(v.voterId);
+      byIp.set(v.ip, e);
+    }
+    for (const s of sessionRows) {
+      if (!s.ip) continue;
+      const e = byIp.get(s.ip) || { votes: 0, logins: 0, voters: new Set() };
+      e.logins++;
+      e.voters.add(s.voterId);
+      byIp.set(s.ip, e);
+    }
 
     const lines: string[] = [
-      ["IP Address", "Votes Cast", "Voter Mat Number", "Voter Name"].map(csvCell).join(","),
+      ["IP Address", "Logins", "Votes Cast", "Distinct Accounts", "Multi-Account?"]
+        .map(csvCell)
+        .join(","),
     ];
 
-    for (const r of rows) {
-      if (!r.ip) continue;
-      const voters = await prisma.vote.findMany({
-        where: { ip: r.ip },
-        distinct: ["voterId"],
-        select: {
-          voter: { select: { matNumber: true, firstName: true, lastName: true } },
-        },
-      });
-      for (const v of voters) {
-        lines.push(
-          [
-            r.ip,
-            r._count.ip,
-            v.voter.matNumber,
-            `${v.voter.firstName} ${v.voter.lastName}`,
-          ]
-            .map(csvCell)
-            .join(",")
-        );
-      }
+    for (const [ip, e] of byIp.entries()) {
+      if (!ip) continue;
+      lines.push(
+        [
+          ip,
+          e.logins,
+          e.votes,
+          e.voters.size,
+          e.voters.size > 1 ? "YES" : "NO",
+        ]
+          .map(csvCell)
+          .join(",")
+      );
     }
 
     const csv = lines.join("\r\n");
