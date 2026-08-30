@@ -4,8 +4,13 @@ import { getSiteContent } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
-export default async function VerifyOtpPage() {
+export default async function VerifyOtpPage({
+  searchParams,
+}: {
+  searchParams?: { manual?: string };
+}) {
   const content = await getSiteContent();
+  const isManual = searchParams?.manual === "1";
   return (
     <div className="container-page flex justify-center py-12">
       <div className="w-full max-w-md">
@@ -16,7 +21,9 @@ export default async function VerifyOtpPage() {
         <div className="card p-8">
           <h1 className="text-2xl font-bold text-ink">Verify it&apos;s you</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Confirm the code sent to your email to access your ballot.
+            {isManual
+              ? "Enter the code an election officer gave you to access your ballot."
+              : "Confirm the code sent to your email to access your ballot."}
           </p>
           <div className="mt-6">
             <VerifyOtpForm />

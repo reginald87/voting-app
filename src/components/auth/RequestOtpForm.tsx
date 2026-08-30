@@ -29,6 +29,17 @@ export function RequestOtpForm() {
       });
       const data = await res.json();
       if (!res.ok) {
+        // Email delivery failed but the OTP is valid in the DB and the API
+        // returned the identity fields so we can still take the voter to the
+        // code-entry screen; an election officer relays the code manually.
+        if (data?.matNumber && data?.email) {
+          router.push(
+            `/verify-otp?mat=${encodeURIComponent(data.matNumber)}&email=${encodeURIComponent(
+              data.email
+            )}&manual=1`
+          );
+          return;
+        }
         setError(data.error || "Could not send code.");
         setLoading(false);
         return;

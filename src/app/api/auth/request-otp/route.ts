@@ -59,8 +59,17 @@ export async function POST(req: Request) {
       console.error(
         "[request-otp] email delivery failed for", voter.matNumber, ":", emailError
       );
+      // The OTP is still valid in the DB (issueOtp succeeded; only delivery
+      // failed), so surface the identity fields so the UI can send the voter
+      // to the code-entry screen where an election officer can relay a code.
+      // The code itself is never exposed to the client in production.
       return NextResponse.json(
-        { error: "We could not deliver your verification code by email. Please try again shortly." },
+        {
+          error: "We could not deliver your verification code by email. Please get a code from an election officer.",
+          matNumber: voter.matNumber,
+          email: voter.email,
+          manual: true,
+        },
         { status: 503 }
       );
     }

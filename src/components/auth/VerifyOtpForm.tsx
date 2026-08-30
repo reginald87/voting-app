@@ -12,6 +12,7 @@ function VerifyOtpInner() {
   const matNumber = params.get("mat") || "";
   const dev = params.get("dev");
   const isNew = params.get("new") === "1";
+  const isManual = params.get("manual") === "1";
 
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -119,9 +120,11 @@ function VerifyOtpInner() {
         </div>
       )}
       <div className="rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-800">
-        {isNew
-          ? "Account created! Enter the 6-digit code we sent to your email to finish signing in."
-          : "Enter the 6-digit code we just sent to your email."}
+        {isManual
+          ? "Email delivery failed. The verification code was not emailed to you — enter the 6-digit code provided to you by an election officer."
+          : isNew
+            ? "Account created! Enter the 6-digit code we sent to your email to finish signing in."
+            : "Enter the 6-digit code we just sent to your email."}
       </div>
       <div>
         <label className="label">Matriculation number</label>
