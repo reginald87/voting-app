@@ -25,11 +25,32 @@ function readProvider(index: number): Provider | null {
     port,
     secure: port === 465,
     user: process.env[`SMTP_USER${suffix}`],
-    pass: process.env[`SMTP_PASS${suffix}`],
+    // App passwords are frequently stored/displayed with spaces (Gmail's 4x4
+    // format). Gmail's SMTP auth requires the contiguous 16-char form, so strip
+    // all whitespace before passing to the server.
+    pass: process.env[`SMTP_PASS${suffix}`]?.replace(/\s+/g, ""),
     from:
       process.env[`SMTP_FROM${suffix}`] ||
       "BMU SUG Elections <no-reply@bmu-sug.edu.ng>",
   };
+}
+
+// Providers are cycled round-robin so no single provider bears the whole day's
+// load. Gmail-style app passwords are rate-limited; spreading messages keeps
+// each provider under its throttle and reduces "some users fail" bursts.
+let rrCounter = 0;
+function nextStart(providerCount: number): number {
+  rrCounter = (rrCounter + 1) % providerCount;
+  return rrCounter;
+}
+
+function collectProviders(providerCount: number): Provider[] {
+  const providers: Provider[] = [];
+  for (let i = 0; i < providerCount; i++) {
+    const p = readProvider(i);
+    if (p) providers.push(p);
+  }
+  return providers;
 }
 
 function buildTransporter(provider: Provider): Transporter {
@@ -82,11 +103,27 @@ export async function sendMail(
   subject: string,
   html: string
 ): Promise<MailResult> {
-  // Try primary provider then any configured fallbacks.
-  for (let idx = 0; idx < 4; idx++) {
-    const provider = readProvider(idx);
-    if (!provider) break;
+  // Discover whichever providers are configured (up to 4).
+  let providerCount = 0;
+  while (readProvider(providerCount)) providerCount++;
+  if (providerCount === 0) {
+    return { sent: false, error: "No SMTP providers configured" };
+  }
+  const providers = collectProviders(providerCount);
 
+  // Order for this message: start at the round-robin cursor, then cycle through
+  // the rest as ordered fallbacks. This spreads load and avoids hammering a
+  // single primary provider first.
+  const start = nextStart(providerCount);
+  const ordered: Provider[] = [];
+  for (let i = 0; i < providerCount; i++) {
+    ordered.push(providers[(start + i) % providerCount]);
+  }
+
+  let lastErr: string | null = null;
+  const attempts: number[] = [];
+
+  for (const provider of ordered) {
     let transporter: Transporter | null = null;
     try {
       transporter = buildTransporter(provider);
@@ -95,7 +132,7 @@ export async function sendMail(
       continue;
     }
 
-    let lastErr: string | null = null;
+    let providerErr: string | null = null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         await transporter.sendMail({
@@ -104,15 +141,20 @@ export async function sendMail(
           subject,
           html,
         });
-        return { sent: true, provider: provider.host, attempts: attempt };
+        lastErr = null;
+        return {
+          sent: true,
+          provider: provider.host,
+          attempts: attempt,
+        };
       } catch (err) {
-        lastErr = err instanceof Error ? err.message : String(err);
+        providerErr = err instanceof Error ? err.message : String(err);
         const code = (err as any)?.code || "";
         console.error(
-          `[mailer] provider ${provider.host} attempt ${attempt} failed: ${lastErr}${code ? ` (${code})` : ""}`
+          `[mailer] provider ${provider.host} attempt ${attempt} failed: ${providerErr}${code ? ` (${code})` : ""}`
         );
         // Don't retry on permanent auth / invalid-recipient errors.
-        if (/535|534|533|501|510|550 .*no such user|454/.test(String(lastErr))) break;
+        if (/535|534|533|501|510|550 .*no such user|454/.test(String(providerErr))) break;
         if (attempt < MAX_ATTEMPTS && isRetryable(err)) {
           await delay(RETRY_DELAY_MS * attempt);
         } else {
@@ -121,12 +163,17 @@ export async function sendMail(
       }
     }
 
-    // If this provider failed, fall through to the next configured provider.
+    lastErr = providerErr || lastErr;
+    attempts.push((transporter as any)?.options?.port || provider.port);
     transporter.close();
-    if (!lastErr) lastErr = "unknown error";
   }
 
-  return { sent: false, error: "All SMTP providers failed" };
+  return {
+    sent: false,
+    provider: ordered.map((p) => p.host).join(", "),
+    attempts: attempts.length,
+    error: lastErr || "All SMTP providers failed",
+  };
 }
 
 export function otpHtml(otp: string, name: string): string {
