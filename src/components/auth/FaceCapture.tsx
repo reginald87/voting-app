@@ -40,8 +40,28 @@ function loadFaceApi(): Promise<any> {
   return faceapiPromise;
 }
 
-// Seconds the face must stay detected before we auto-capture.
-const AUTO_CAPTURE_DELAY = 1.5;
+// Liveness: we detect a voluntary blink (eyes close then reopen) before we
+// trust the capture. A static printed photo cannot blink, which defeats the
+// most common spoofing attack. These thresholds are the industry-standard Eye
+// Aspect Ratio (EAR) values for open and closed eyes.
+const EAR_OPEN = 0.18; // below this the eye counts as closed
+const MAX_BLINK_WAIT_MS = 10_000; // give up waiting for a blink after 10s
+
+/** Average EAR across both eyes; null if eye landmarks are unavailable. */
+function eyeAspectRatio(
+  landmarks: { getLeftEye?: () => { x: number; y: number }[]; getRightEye?: () => { x: number; y: number }[] }
+): number | null {
+  const left = landmarks.getLeftEye ? landmarks.getLeftEye() : [];
+  const right = landmarks.getRightEye ? landmarks.getRightEye() : [];
+  if (!left.length || !right.length) return null;
+  const ear = (eye: { x: number; y: number }[]): number => {
+    const v1 = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
+    const v2 = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
+    const h = Math.hypot(eye[0].x - eye[3].x, eye[0].y - eye[3].y);
+    return (v1 + v2) / (2 * h);
+  };
+  return (ear(left) + ear(right)) / 2;
+}
 
 export function FaceCapture({
   onCapture,
@@ -54,23 +74,39 @@ export function FaceCapture({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectTimer = useRef<number | null>(null);
-  const autoTimer = useRef<number | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
   );
   const [message, setMessage] = useState<string>("");
   const [faceFound, setFaceFound] = useState(false);
   const [captured, setCaptured] = useState<number[] | null>(null);
-  const [autoCount, setAutoCount] = useState<number | null>(null);
   const [alreadyCapturing, setAlreadyCapturing] = useState(false);
 
-  const clearAuto = useCallback(() => {
-    if (autoTimer.current) {
-      clearTimeout(autoTimer.current);
-      autoTimer.current = null;
+  // Blink-challenge liveness state. We require a voluntary eye close→open cycle
+  // before capturing. "closed" flips true when EAR drops below the closed
+  // threshold, then a blink is confirmed when eyes reopen afterwards.
+  const [blinkPrompt, setBlinkPrompt] = useState(false);
+  const [blinkOk, setBlinkOk] = useState(false);
+  const closedSeen = useRef(false);
+  const blockBlink = useRef(false);
+  const blinkWaitTimer = useRef<number | null>(null);
+
+  const clearBlinkWait = useCallback(() => {
+    if (blinkWaitTimer.current) {
+      clearTimeout(blinkWaitTimer.current);
+      blinkWaitTimer.current = null;
     }
-    setAutoCount(null);
   }, []);
+
+  // Restore the blink-challenge state so the voter can retry after a failure,
+  // without having to stop/restart the camera.
+  const resetChallenge = useCallback(() => {
+    blockBlink.current = false;
+    closedSeen.current = false;
+    clearBlinkWait();
+    setBlinkOk(false);
+    setBlinkPrompt(false);
+  }, [clearBlinkWait]);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -79,15 +115,25 @@ export function FaceCapture({
       clearInterval(detectTimer.current);
       detectTimer.current = null;
     }
-    clearAuto();
-  }, [clearAuto]);
+    clearBlinkWait();
+  }, [clearBlinkWait]);
 
   const start = useCallback(async () => {
     setMessage("");
     setCaptured(null);
     setAlreadyCapturing(false);
-    setStatus("loading");
-    try {
+      setBlinkPrompt(false);
+      setBlinkOk(false);
+      closedSeen.current = false;
+      blockBlink.current = false;
+      setStatus("loading");
+      // Guard against a duplicate detection loop if `start` re-runs (state
+      // deps change mid-flow) while the camera stream is already open.
+      if (detectTimer.current) {
+        clearInterval(detectTimer.current);
+        detectTimer.current = null;
+      }
+      try {
       const faceapi = await loadFaceApi();
       await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
       await faceapi.nets.faceLandmark68Net.loadFromUri("/models");
@@ -110,23 +156,41 @@ export function FaceCapture({
         const found = !!det;
         setFaceFound(found);
 
-        // Begin the auto-capture countdown as soon as a face appears.
-        if (found && !alreadyCapturing && !captured) {
-          if (!autoTimer.current) {
-            setAutoCount(Math.ceil(AUTO_CAPTURE_DELAY));
-            autoTimer.current = window.setTimeout(() => {
+        if (found && !alreadyCapturing && !captured && !blinkOk) {
+          // Compute EAR to watch for a blink (eyes close then reopen).
+          const ear = det ? eyeAspectRatio(det.landmarks as any) : null;
+          if (ear === null) return;
+          if (ear < EAR_OPEN) {
+            closedSeen.current = true;
+            // Don't flicker the UI while the eyes are already closed.
+          } else if (!closedSeen.current && !blinkPrompt) {
+            // Eyes open and stable — ask the user to blink.
+            setBlinkPrompt(true);
+            if (!blinkWaitTimer.current) {
+              blinkWaitTimer.current = window.setTimeout(() => {
+                // No blink detected in time: re-ask, but don't loop forever.
+                setBlinkOk(false);
+                setBlinkPrompt(false);
+                closedSeen.current = false;
+                clearBlinkWait();
+                setMessage(
+                  "No blink detected. Please blink (close and open your eyes) to confirm you're live."
+                );
+              }, MAX_BLINK_WAIT_MS);
+            }
+          } else if (closedSeen.current) {
+            // A full blink cycle: closed was seen and now the eyes are open.
+            if (!blockBlink.current) {
+              blockBlink.current = true;
+              clearBlinkWait();
+              setBlinkOk(true);
+              setBlinkPrompt(false);
+              setMessage("Liveness confirmed. Capturing your face…");
               capture();
-            }, AUTO_CAPTURE_DELAY * 1000);
-            // Simple ticking countdown for feedback.
-            let remaining = AUTO_CAPTURE_DELAY;
-            const tick = window.setInterval(() => {
-              remaining -= 0.5;
-              setAutoCount(Math.max(0, Math.ceil(remaining)));
-              if (remaining <= 0) clearInterval(tick);
-            }, 500);
+            }
           }
         } else if (!found) {
-          clearAuto();
+          closedSeen.current = false;
         }
       }, 350);
     } catch (e) {
@@ -140,20 +204,19 @@ export function FaceCapture({
       onCapture(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onCapture, captured, alreadyCapturing, clearAuto]);
+  }, [onCapture, captured, alreadyCapturing, blinkOk, clearBlinkWait]);
 
   useEffect(() => () => stop(), [stop]);
 
   async function capture() {
     if (alreadyCapturing || captured) return;
-    clearAuto();
     setAlreadyCapturing(true);
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
     if (video.readyState < 2) {
       setMessage("Camera is not ready. Please try again.");
-      setAlreadyCapturing(false);
+      resetChallenge();
       return;
     }
     try {
@@ -164,36 +227,25 @@ export function FaceCapture({
         .withFaceDescriptor();
       if (!result) {
         setMessage("No face detected. Position your face in the frame and retry.");
-        setAlreadyCapturing(false);
+        resetChallenge();
         return;
       }
 
-      // Liveness check: a real, live face has open eyes. A static printed
-      // photo has closed/flat eyes. Compute the Eye Aspect Ratio (EAR) for both
-      // eyes and reject if either reads as closed or the landmarks are missing.
+      // Sanity check on the capture frame: the eyes must be open and readable.
+      // (The blink cycle was already verified as liveness before capture.)
       const landmarks = result.landmarks as {
         getLeftEye?: () => { x: number; y: number }[];
         getRightEye?: () => { x: number; y: number }[];
       };
-      const left = landmarks.getLeftEye ? landmarks.getLeftEye() : [];
-      const right = landmarks.getRightEye ? landmarks.getRightEye() : [];
-      if (!left.length || !right.length) {
+      const ear = eyeAspectRatio(landmarks);
+      if (ear === null) {
         setMessage("Could not read your eyes. Please face the camera directly and retry.");
-        setAlreadyCapturing(false);
+        resetChallenge();
         return;
       }
-      const eyeAspectRatio = (eye: { x: number; y: number }[]): number => {
-        const p = eye;
-        const v1 = Math.hypot(p[1].x - p[5].x, p[1].y - p[5].y);
-        const v2 = Math.hypot(p[2].x - p[4].x, p[2].y - p[4].y);
-        const h = Math.hypot(p[0].x - p[3].x, p[0].y - p[3].y);
-        return (v1 + v2) / (2 * h);
-      };
-      const leftEAR = eyeAspectRatio(left);
-      const rightEAR = eyeAspectRatio(right);
-      if (leftEAR < 0.18 || rightEAR < 0.18) {
-        setMessage("Your eyes appear closed or unsupported. Open your eyes fully and retry (helps prevent photo spoofing).");
-        setAlreadyCapturing(false);
+      if (ear < EAR_OPEN) {
+        setMessage("Your eyes are closed. Please open your eyes fully and retry.");
+        resetChallenge();
         return;
       }
 
@@ -239,6 +291,7 @@ export function FaceCapture({
       stop();
     } catch (e) {
       setMessage("Face capture failed. Please try again.");
+      resetChallenge();
       onCapture(null);
     }
   }
@@ -284,10 +337,17 @@ export function FaceCapture({
                   className="transition-colors"
                 />
               </svg>
-              {autoCount !== null && (
+              {blinkPrompt && !blinkOk && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
+                  <span className="rounded-full bg-brand-700/90 px-3 py-1 text-xs font-semibold text-white shadow">
+                    Blink to confirm you&apos;re live
+                  </span>
+                </div>
+              )}
+              {blinkOk && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/90 text-2xl font-bold text-white shadow-lg">
-                    {autoCount > 0 ? autoCount : "…"}
+                    ✓
                   </span>
                 </div>
               )}
@@ -329,7 +389,7 @@ export function FaceCapture({
         {captured && <span className="badge-green">Face captured</span>}
       </div>
       <p className="mt-2 text-[11px] text-slate-400">
-        Your face is captured automatically once detected. Face data is processed
+        Your face is captured automatically once you blink. Face data is processed
         in your browser and stored only as a mathematical template, used with your
         OTP as a second layer of verification.
       </p>
