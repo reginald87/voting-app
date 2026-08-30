@@ -143,6 +143,26 @@ export async function getLiveResults(): Promise<PositionResult[]> {
       counts.set(v.aspirantId, (counts.get(v.aspirantId) || 0) + 1);
     }
     const totalVotes = p.votes.length;
+    const candidates = p.aspirants.map((a) => ({
+      aspirantId: a.id,
+      name: `${a.firstName} ${a.lastName}`,
+      department: a.department,
+      level: a.level,
+      photoUrl: a.photoUrl,
+      votes: counts.get(a.id) || 0,
+    }));
+    // Count abstentions as a visible row so the displayed bars sum exactly to
+    // totalVotes (candidates + abstentions = all votes in the category).
+    if (abstained > 0) {
+      candidates.push({
+        aspirantId: -1,
+        name: "Abstentions",
+        department: "",
+        level: "",
+        photoUrl: null,
+        votes: abstained,
+      });
+    }
     return {
       positionId: p.id,
       title: p.title,
@@ -150,14 +170,7 @@ export async function getLiveResults(): Promise<PositionResult[]> {
       order: p.order,
       totalVotes,
       abstained,
-      candidates: p.aspirants.map((a) => ({
-        aspirantId: a.id,
-        name: `${a.firstName} ${a.lastName}`,
-        department: a.department,
-        level: a.level,
-        photoUrl: a.photoUrl,
-        votes: counts.get(a.id) || 0,
-      })),
+      candidates,
     };
   });
 }

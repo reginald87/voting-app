@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyOtp } from "@/lib/otp";
 import { createVoterSession } from "@/lib/session";
-import { faceEnabled, matchFace } from "@/lib/face";
+import { faceEnabled, enrollFace, matchFace } from "@/lib/face";
+import { proofHashFromRaw } from "@/lib/biometric";
+import { saveFaceImage } from "@/lib/faceImage";
 
 export async function POST(req: Request) {
   let body: any;
@@ -50,22 +52,52 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: otpResult.reason }, { status: 401 });
   }
 
+  let faceProof: string | null = null;
   if (await faceEnabled()) {
-    // Only enforce face matching if the voter actually enrolled a template.
-    // Voters without an enrolled face are not locked out (scaffold policy).
-    if (voter.faceEnrolled) {
+    // A live face capture is required to log in.
+    if (!faceTemplate) {
+      return NextResponse.json(
+        { error: "Camera access is required to verify your identity." },
+        { status: 400 }
+      );
+    }
+    // Enroll only the FIRST time; afterwards just verify. Once enrolled the
+    // template is kept forever and is what must match again at vote time.
+    // The OTP step already proved identity/email ownership, so a first-time
+    // enrollment here is trusted as the voter's own face.
+    if (!voter.faceEnrolled) {
+      try {
+        await enrollFace(voter.id, faceTemplate);
+        // Persist a browsable crop of the registered face for the admin panel.
+        const imageUrl = await saveFaceImage(body.faceImage);
+        if (imageUrl) {
+          await prisma.voter.update({
+            where: { id: voter.id },
+            data: { faceImageUrl: imageUrl },
+          });
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "Your face could not be registered. Please try again." },
+          { status: 503 }
+        );
+      }
+    } else {
       const face = await matchFace(voter.id, faceTemplate);
       if (!face.ok) {
         return NextResponse.json(
-          { error: face.reason || "Face verification failed." },
+          { error: face.reason || "Face did not match. Please try again." },
           { status: 401 }
         );
       }
     }
+    // Store a salted hash of the presented descriptor as an audit proof — the
+    // DB never holds a reusable raw biometric vector.
+    faceProof = proofHashFromRaw(faceTemplate);
   }
 
   try {
-    await createVoterSession(voter.id);
+    await createVoterSession(voter.id, faceProof);
   } catch {
     return NextResponse.json(
       { error: "Could not start your session. Please try again." },

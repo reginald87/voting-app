@@ -317,18 +317,21 @@ function CandidatesChart({
         {p.candidates.map((c) => {
           const hPct = Math.round((c.votes / max) * 100);
           const share = p.totalVotes ? Math.round((c.votes / p.totalVotes) * 100) : 0;
-          const isLeader = c.votes === max && p.totalVotes > 0;
+          const isAbstention = c.aspirantId === -1;
+          const isLeader = !isAbstention && c.votes === max && p.totalVotes > 0;
+          const avatarFirst = isAbstention ? "" : c.name.split(" ")[0];
+          const avatarLast = isAbstention ? "—" : c.name.split(" ")[1] || "";
           return (
             <div
               key={c.aspirantId}
               className="flex w-24 min-w-0 flex-1 flex-col items-center sm:w-32"
             >
               <Avatar
-                first={c.name.split(" ")[0]}
-                last={c.name.split(" ")[1] || ""}
+                first={avatarFirst}
+                last={avatarLast}
                 src={c.photoUrl}
                 size={avatar}
-                className="mb-3 ring-2 ring-white"
+                className={`mb-3 ring-2 ring-white ${isAbstention ? "opacity-60" : ""}`}
               />
               <div
                 className="relative flex w-full max-w-[160px] items-end justify-center"
@@ -336,9 +339,11 @@ function CandidatesChart({
               >
                 <div
                   className={`w-full rounded-t-lg bg-gradient-to-t ${
-                    isLeader
-                      ? "from-emerald-500 to-emerald-400"
-                      : "from-brand-600 to-brand-400"
+                    isAbstention
+                      ? "from-slate-400 to-slate-300"
+                      : isLeader
+                        ? "from-emerald-500 to-emerald-400"
+                        : "from-brand-600 to-brand-400"
                   } transition-all duration-500`}
                   style={{ height: `${hPct}%` }}
                 >

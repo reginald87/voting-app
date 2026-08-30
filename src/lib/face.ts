@@ -1,47 +1,61 @@
 import { prisma } from "./prisma";
 import { getSiteContent } from "./content";
+import {
+  normalizeDescriptor,
+  encryptDescriptor,
+  decryptDescriptor,
+  hashDescriptor,
+  randomSalt,
+  DESCRIPTOR_LENGTH,
+} from "./biometric";
 
 /**
- * Real face recognition (face-api.js, client-side descriptors).
+ * Face verification (face-api.js client-side descriptors).
  *
- * The client computes a 128-d descriptor with face-api.js and sends the raw
- * number[] to the server. We store it as a JSON string and compare with
- * euclidean distance. This is a SECOND FACTOR alongside the OTP — not a
- * replacement. Biometric handling requires a consent notice (see registration).
+ * The client computes a 128-d descriptor and sends it to the server. We store
+ * the template ENCRYPTED at rest (AES-256-GCM + per-voter salt) and verify by
+ * decrypting it in memory just long enough to compute the euclidean distance.
+ * A salted hash is kept for audit. This is a layered verification factor on
+ * top of the OTP — not a replacement.
  */
 
-export const DESCRIPTOR_LENGTH = 128;
 export const MATCH_THRESHOLD = 0.45; // euclidean distance; lower = stricter
+export { DESCRIPTOR_LENGTH };
 
 export async function faceEnabled(): Promise<boolean> {
   const c = await getSiteContent();
   return Boolean(c.faceRecognition);
 }
 
-function normalize(d: unknown): number[] | null {
-  // Accept a parsed array or a JSON-encoded string (the client sends a
-  // stringified descriptor, and verify-otp forwards the raw string).
-  let value: unknown = d;
-  if (typeof d === "string") {
-    try {
-      value = JSON.parse(d);
-    } catch {
-      return null;
-    }
-  }
-  if (!Array.isArray(value)) return null;
-  if (value.length !== DESCRIPTOR_LENGTH) return null;
-  const nums = value.map((n) => Number(n));
-  if (nums.some((n) => !Number.isFinite(n))) return null;
-  return nums;
+/** Whether a voter has an enrolled, decryptable face template on file. */
+export async function hasEnrolledFace(voterId: number): Promise<boolean> {
+  const v = await prisma.voter.findUnique({ where: { id: voterId } });
+  if (!v?.faceEnrolled || !v.faceTemplate) return false;
+  if (!v.faceSalt) return false; // placeholder / legacy row without crypto salt
+  return true;
 }
 
+/**
+ * Enroll (or re-enroll) a voter's face. Called only after the voter has proven
+ * identity via the OTP, so the face bound here is trusted. Stores only the
+ * encrypted template + a salted hash — never the raw descriptor.
+ */
 export async function enrollFace(voterId: number, descriptor: unknown) {
-  const desc = normalize(descriptor);
+  const desc = normalizeDescriptor(descriptor);
   if (!desc) throw new Error("Invalid face descriptor");
+
+  const existing = await prisma.voter.findUnique({ where: { id: voterId } });
+  const salt = existing?.faceSalt || randomSalt();
+
   await prisma.voter.update({
     where: { id: voterId },
-    data: { faceTemplate: JSON.stringify(desc), faceEnrolled: true },
+    data: {
+      faceTemplate: encryptDescriptor(desc, salt),
+      faceSalt: salt,
+      faceHash: hashDescriptor(desc, salt),
+      faceEnrolled: true,
+      faceRegisteredAt: new Date(),
+    },
   });
 }
 
@@ -54,23 +68,37 @@ function euclidean(a: number[], b: number[]): number {
   return Math.sqrt(sum);
 }
 
+async function enrolledDescriptor(voterId: number): Promise<number[] | null> {
+  const voter = await prisma.voter.findUnique({ where: { id: voterId } });
+  if (!voter || !voter.faceEnrolled || !voter.faceTemplate) return null;
+
+  if (voter.faceSalt) {
+    const dec = decryptDescriptor(voter.faceTemplate, voter.faceSalt);
+    if (dec) return dec;
+  }
+  // Backwards compatibility: templates stored as raw JSON before encryption.
+  return normalizeDescriptor(voter.faceTemplate);
+}
+
 export async function matchFace(
   voterId: number,
   descriptor: unknown
 ): Promise<{ ok: boolean; reason?: string }> {
-  const voter = await prisma.voter.findUnique({ where: { id: voterId } });
-  if (!voter || !voter.faceEnrolled || !voter.faceTemplate) {
-    return { ok: false, reason: "Face not enrolled for this voter." };
+  const enrolled = await enrolledDescriptor(voterId);
+  if (!enrolled) {
+    return {
+      ok: false,
+      reason: "No face is registered for this voter. Please enroll your face first.",
+    };
   }
-  const enrolled = normalize(JSON.parse(voter.faceTemplate));
-  const presented = normalize(descriptor);
-  if (!enrolled || !presented) {
+  const presented = normalizeDescriptor(descriptor);
+  if (!presented) {
     return { ok: false, reason: "Face template could not be read." };
   }
   const distance = euclidean(enrolled, presented);
   if (distance <= MATCH_THRESHOLD) return { ok: true, reason: undefined };
   return {
     ok: false,
-    reason: `Face did not match the enrolled template (distance ${distance.toFixed(3)}).`,
+    reason: `Face did not match the registered template (distance ${distance.toFixed(3)}).`,
   };
 }

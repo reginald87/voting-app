@@ -27,8 +27,12 @@ model Voter {
   sugReceiptUrl String?
   avatarUrl   String?
   accredited  Boolean   @default(false)
-  faceTemplate String?
+  faceTemplate String?  @map("faceTemplate")
+  faceSalt     String?
+  faceHash     String?
+  faceImageUrl String?
   faceEnrolled Boolean  @default(false)
+  faceRegisteredAt DateTime?
   createdAt   DateTime  @default(now())
   sessions    Session[]
   votes       Vote[]
@@ -40,6 +44,8 @@ model Session {
   voterId   Int
   voter     Voter    @relation(fields: [voterId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+  faceProof String?
+  faceVerifiedAt DateTime?
   createdAt DateTime @default(now())
 }
 
@@ -86,6 +92,9 @@ model Vote {
   aspirant    Aspirant? @relation(fields: [aspirantId], references: [id], onDelete: Cascade)
   abstained   Boolean   @default(false)
   ip          String?
+  faceProof   String?
+  faceImageUrl String?
+  faceVerifiedAt DateTime?
   createdAt   DateTime  @default(now())
 
   @@unique([voterId, positionId])

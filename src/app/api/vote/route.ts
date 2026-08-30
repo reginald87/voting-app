@@ -4,6 +4,9 @@ import { getVoter, destroyVoterSession } from "@/lib/session";
 import { getVotingStatus } from "@/lib/election";
 import { withWriteLock } from "@/lib/voteQueue";
 import { getClientIp } from "@/lib/ip";
+import { faceEnabled, matchFace } from "@/lib/face";
+import { proofHashFromRaw } from "@/lib/biometric";
+import { saveFaceImage } from "@/lib/faceImage";
 
 const PRISMA_UNIQUE_ERR = "P2002";
 
@@ -51,13 +54,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid vote payload." }, { status: 400 });
   }
 
+  const rawFace = body.faceTemplate ?? null;
+  const faceTemplate =
+    typeof rawFace === "string"
+      ? rawFace
+      : Array.isArray(rawFace)
+        ? JSON.stringify(rawFace)
+        : rawFace;
+
+  // Face is a hard requirement at vote time when face mode is active, to stop
+  // a stolen email+OTP session from casting a vote without the voter's face.
+  let faceProof: string | null = null;
+  let faceImageUrl: string | null = null;
+  if (await faceEnabled()) {
+    if (!voter.faceEnrolled) {
+      return NextResponse.json(
+        { error: "You have not enrolled a face yet. Please contact the electoral commission to complete verification." },
+        { status: 401 }
+      );
+    }
+    const face = await matchFace(voter.id, faceTemplate);
+    if (!face.ok) {
+      return NextResponse.json(
+        { error: face.reason || "Face verification failed. Please retry with your face in view of the camera." },
+        { status: 401 }
+      );
+    }
+    // Store a salted hash of the presented descriptor as vote proof — the DB
+    // never holds a reusable raw biometric vector.
+    faceProof = proofHashFromRaw(faceTemplate);
+    // Persist a browsable crop of the vote-time face for the admin panel, so
+    // an admin can see who actually cast each vote.
+    try {
+      faceImageUrl = await saveFaceImage(body.faceImage);
+    } catch {
+      faceImageUrl = null;
+    }
+  }
+
   const position = await prisma.position.findUnique({ where: { id: positionId } });
   if (!position) {
     return NextResponse.json({ error: "Unknown position." }, { status: 400 });
   }
 
   if (abstain) {
-    return finalizeVote(voter.id, positionId, position.title, null, true, null, ip);
+    return finalizeVote(voter.id, positionId, position.title, null, true, null, ip, faceProof, faceImageUrl);
   }
 
   const aspirant = await prisma.aspirant.findUnique({
@@ -78,9 +119,11 @@ export async function POST(req: Request) {
     aspirant.id,
     false,
     `${aspirant.firstName} ${aspirant.lastName}`,
-    ip
+    ip,
+    faceProof,
+    faceImageUrl
   );
-}
+} 
 
 async function finalizeVote(
   voterId: number,
@@ -89,7 +132,9 @@ async function finalizeVote(
   aspirantId: number | null,
   abstain: boolean,
   candidateName: string | null,
-  ip: string | null
+  ip: string | null,
+  faceProof: string | null,
+  faceImageUrl: string | null
 ): Promise<NextResponse> {
   try {
     const vote = await withWriteLock(() =>
@@ -109,6 +154,9 @@ async function finalizeVote(
               aspirantId,
               abstained: abstain,
               ip,
+              faceProof,
+              faceImageUrl,
+              faceVerifiedAt: faceProof ? new Date() : null,
             },
           });
         },

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getVoter } from "@/lib/session";
 import { getVotingStatus } from "@/lib/election";
+import { faceEnabled } from "@/lib/face";
 import { Ballot } from "@/components/Ballot";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export default async function VotePage() {
   const voter = await getVoter();
   if (!voter) redirect("/login");
 
-  const [positions, votes, status] = await Promise.all([
+  const [positions, votes, status, faceOn] = await Promise.all([
     prisma.position.findMany({
       orderBy: { order: "asc" },
       include: { aspirants: { orderBy: { order: "asc" } } },
@@ -21,6 +22,7 @@ export default async function VotePage() {
       include: { aspirant: true },
     }),
     getVotingStatus(),
+    faceEnabled(),
   ]);
 
   const voted = votes.map((v) => ({
@@ -63,6 +65,8 @@ export default async function VotePage() {
         accredited={voter.accredited}
         statusOpen={status.open}
         statusReason={status.reason}
+        faceEnabled={faceOn}
+        faceEnrolled={voter.faceEnrolled}
       />
 
       <div className="mt-8">

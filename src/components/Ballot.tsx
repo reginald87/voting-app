@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { Toast } from "@/components/Toast";
+import { FaceCapture } from "@/components/auth/FaceCapture";
 
 interface Aspirant {
   id: number;
@@ -30,12 +31,16 @@ export function Ballot({
   accredited,
   statusOpen,
   statusReason,
+  faceEnabled,
+  faceEnrolled,
 }: {
   positions: Position[];
   voted: VotedEntry[];
   accredited: boolean;
   statusOpen: boolean;
   statusReason?: string | null;
+  faceEnabled: boolean;
+  faceEnrolled: boolean;
 }) {
   const votedMap = new Map(voted.map((v) => [v.positionId, v.candidate]));
   const [selected, setSelected] = useState<Record<number, number>>({});
@@ -44,18 +49,26 @@ export function Ballot({
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sessionFinished, setSessionFinished] = useState(false);
+  const [faceTemplate, setFaceTemplate] = useState<number[] | null>(null);
+  const [faceImage, setFaceImage] = useState<string | undefined>(undefined);
+  const [faceError, setFaceError] = useState<string | null>(null);
 
   async function cast(positionId: number, aspirantId?: number) {
+    if (faceEnabled && !faceTemplate) {
+      setFaceError("You must verify your face before casting a vote.");
+      return;
+    }
     setBusy(positionId);
     setError(null);
+    setFaceError(null);
     try {
       const res = await fetch("/api/vote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           aspirantId
-            ? { positionId, aspirantId }
-            : { positionId, abstain: true }
+            ? { positionId, aspirantId, faceTemplate: faceTemplate ?? undefined, faceImage: faceImage ?? undefined }
+            : { positionId, abstain: true, faceTemplate: faceTemplate ?? undefined, faceImage: faceImage ?? undefined }
         ),
       });
       const data = await res.json();
@@ -130,6 +143,44 @@ export function Ballot({
       {error && (
         <div className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
       )}
+      {faceEnabled && !faceEnrolled && (
+        <div className="card p-6 border-amber-200">
+          <h2 className="text-lg font-semibold text-ink">Face verification required</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            You have not enrolled a face yet. You must complete face verification before
+            you can vote. Please contact the electoral commission.
+          </p>
+        </div>
+      )}
+      {faceEnabled && faceEnrolled && (
+        <div className="card p-6">
+          <h2 className="text-lg font-semibold text-ink">Verify your identity</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Show your face to verify before casting your vote. Your face is matched to
+            your enrolled template and recorded as proof alongside each vote.
+          </p>
+          {faceError && (
+            <div className="mt-3 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {faceError}
+            </div>
+          )}
+          <div className="mt-4">
+            <FaceCapture
+              label="Live face verification (required to vote)"
+              onCapture={(result) => {
+                setFaceTemplate(result ? result.descriptor : null);
+                setFaceImage(result?.image);
+                setFaceError(null);
+              }}
+            />
+          </div>
+          {!faceTemplate && (
+            <p className="mt-3 text-sm font-medium text-amber-600">
+              A verified face is required before you can cast a vote.
+            </p>
+          )}
+        </div>
+      )}
       {positions.map((pos) => {
         const already = votedMap.get(pos.id);
         const locked = already || done[pos.id];
@@ -198,7 +249,7 @@ export function Ballot({
                   <button
                     type="button"
                     onClick={() => cast(pos.id, chosen)}
-                    disabled={!chosen || busy === pos.id}
+                    disabled={!chosen || busy === pos.id || (faceEnabled && !faceTemplate)}
                     className="btn-primary"
                   >
                     {busy === pos.id ? "Submitting…" : "Cast vote"}
@@ -206,7 +257,7 @@ export function Ballot({
                   <button
                     type="button"
                     onClick={() => cast(pos.id)}
-                    disabled={busy === pos.id}
+                    disabled={busy === pos.id || (faceEnabled && !faceTemplate)}
                     className="btn-outline text-slate-500"
                   >
                     Abstain from this position

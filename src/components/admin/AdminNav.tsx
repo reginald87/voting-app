@@ -23,6 +23,7 @@ const GROUPS: { title: string; links: { href: string; label: string }[] }[] = [
       { href: "/admin/settings", label: "Voting Period" },
       { href: "/admin/live", label: "Live Votes" },
       { href: "/admin/ip-audit", label: "IP Audit" },
+      { href: "/admin/face-audit", label: "Face Audit" },
       { href: "/admin/reports", label: "Reports" },
       { href: "/admin/content", label: "Content & Branding" },
     ],

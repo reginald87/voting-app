@@ -19,6 +19,15 @@ function VerifyOtpInner() {
   const [toast, setToast] = useState<string | null>(null);
   const [faceEnabled, setFaceEnabled] = useState(false);
   const [faceTemplate, setFaceTemplate] = useState<number[] | null>(null);
+  const [faceImage, setFaceImage] = useState<string | undefined>(undefined);
+  const [resending, setResending] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const t = setInterval(() => setCountdown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [countdown]);
 
   // The dev code is only put on the URL by the dev flow. Never render it on
   // a non-local hostname (defense in depth against a forged ?dev= param).
@@ -52,6 +61,7 @@ function VerifyOtpInner() {
           matNumber,
           code,
           faceTemplate: faceEnabled ? faceTemplate : undefined,
+          faceImage: faceEnabled ? faceImage : undefined,
         }),
       });
       const data = await res.json();
@@ -68,6 +78,30 @@ function VerifyOtpInner() {
     } catch {
       setError("Network error. Please try again.");
       setLoading(false);
+    }
+  }
+
+  async function resendCode() {
+    setResending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Could not resend the code.");
+        setResending(false);
+        return;
+      }
+      setToast("A new code has been sent to your email.");
+      setCountdown(30);
+    } catch {
+      setError("Network error while resending. Please try again.");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -106,16 +140,31 @@ function VerifyOtpInner() {
       </div>
       {faceEnabled && (
         <FaceCapture
-          label="Face verification (required)"
-          onCapture={(r) => setFaceTemplate(r ? r.descriptor : null)}
+          label="Enroll / verify your face (required)"
+          onCapture={(r) => {
+            setFaceTemplate(r ? r.descriptor : null);
+            setFaceImage(r?.image);
+          }}
         />
       )}
       <button type="submit" className="btn-primary w-full" disabled={loading}>
         {loading ? "Verifying…" : "Verify & sign in"}
       </button>
-      <p className="text-center text-xs text-slate-400">
-        Code expires in 5 minutes.
-      </p>
+      <div className="text-center text-xs text-slate-400">
+        <p>Code expires in 5 minutes.</p>
+        <button
+          type="button"
+          onClick={resendCode}
+          disabled={resending || countdown > 0}
+          className="mt-2 font-semibold text-brand-700 disabled:cursor-not-allowed disabled:text-slate-400"
+        >
+          {resending
+            ? "Resending…"
+            : countdown > 0
+              ? `Resend code in ${countdown}s`
+              : "Didn't get it? Resend code"}
+        </button>
+      </div>
       </form>
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
     </>

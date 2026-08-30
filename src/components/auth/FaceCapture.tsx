@@ -5,6 +5,8 @@ import { useRef, useState, useEffect, useCallback } from "react";
 export interface FaceResult {
   descriptor: number[];
   liveness: "pending" | "ok" | "failed";
+  /** JPEG data URL of the detected face (crop), used for admin viewing. */
+  image?: string;
 }
 
 // The face recognition library is loaded at runtime from a self-hosted UMD
@@ -165,13 +167,78 @@ export function FaceCapture({
         setAlreadyCapturing(false);
         return;
       }
+
+      // Liveness check: a real, live face has open eyes. A static printed
+      // photo has closed/flat eyes. Compute the Eye Aspect Ratio (EAR) for both
+      // eyes and reject if either reads as closed or the landmarks are missing.
+      const landmarks = result.landmarks as {
+        getLeftEye?: () => { x: number; y: number }[];
+        getRightEye?: () => { x: number; y: number }[];
+      };
+      const left = landmarks.getLeftEye ? landmarks.getLeftEye() : [];
+      const right = landmarks.getRightEye ? landmarks.getRightEye() : [];
+      if (!left.length || !right.length) {
+        setMessage("Could not read your eyes. Please face the camera directly and retry.");
+        setAlreadyCapturing(false);
+        return;
+      }
+      const eyeAspectRatio = (eye: { x: number; y: number }[]): number => {
+        const p = eye;
+        const v1 = Math.hypot(p[1].x - p[5].x, p[1].y - p[5].y);
+        const v2 = Math.hypot(p[2].x - p[4].x, p[2].y - p[4].y);
+        const h = Math.hypot(p[0].x - p[3].x, p[0].y - p[3].y);
+        return (v1 + v2) / (2 * h);
+      };
+      const leftEAR = eyeAspectRatio(left);
+      const rightEAR = eyeAspectRatio(right);
+      if (leftEAR < 0.18 || rightEAR < 0.18) {
+        setMessage("Your eyes appear closed or unsupported. Open your eyes fully and retry (helps prevent photo spoofing).");
+        setAlreadyCapturing(false);
+        return;
+      }
+
       const descriptor = Array.from(result.descriptor as ArrayLike<number>);
+
+      // Produce a small JPEG crop of the detected face for admin review.
+      let image: string | undefined;
+      try {
+        const box = result.detection.box as { x: number; y: number; width: number; height: number };
+        if (videoRef.current && canvasRef.current && box && box.width > 0) {
+          const ctx = canvasRef.current.getContext("2d");
+          if (ctx) {
+            const pad = 0.3;
+            let sx = Math.max(0, box.x - box.width * pad);
+            let sy = Math.max(0, box.y - box.height * pad);
+            let sw = box.width * (1 + pad * 2);
+            let sh = box.height * (1 + pad * 2);
+            const maxX = videoRef.current.videoWidth;
+            const maxY = videoRef.current.videoHeight;
+            if (sx + sw > maxX) sw = maxX - sx;
+            if (sy + sh > maxY) sh = maxY - sy;
+            canvasRef.current.width = 224;
+            canvasRef.current.height = 224;
+            ctx.drawImage(
+              videoRef.current,
+              sx,
+              sy,
+              sw,
+              sh,
+              0,
+              0,
+              canvasRef.current.width,
+              canvasRef.current.height
+            );
+            image = canvasRef.current.toDataURL("image/jpeg", 0.8);
+          }
+        }
+      } catch {}
+
       setMessage("");
       setCaptured(descriptor);
-      onCapture({ descriptor, liveness: "ok" });
+      onCapture({ descriptor, liveness: "ok", image });
       stop();
     } catch (e) {
-      setMessage("Face capture failed. You can continue without it.");
+      setMessage("Face capture failed. Please try again.");
       onCapture(null);
     }
   }
