@@ -98,12 +98,70 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ---------------------------------------------------------------------------
+// Global outbound rate limiter (sliding window).
+//
+// Gmail app passwords and other free SMTP providers throttle bursts (roughly
+// ~1 msg/sec and a low daily cap). With 1000+ voters requesting OTPs at the
+// same time, we can trip that throttle and drop a fraction of emails. This
+// paces all outbound sends to a safe rate (SMTP_MAX_PER_MINUTE, default 60) so
+// we never burst past the provider's limit. When the window is full we WAIT for
+// a slot instead of failing, so every email still goes out — just smooths the
+// load. The limiter's history auto-expires, and it is intentionally bounded.
+// ---------------------------------------------------------------------------
+
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1-minute sliding window
+const MAX_SAFE_QUEUE_MS = 90_000; // never wait more than this before giving up
+const sendTimestamps: number[] = [];
+
+function getRateLimitPerMinute(): number {
+  const raw = Number(process.env.SMTP_MAX_PER_MINUTE);
+  if (Number.isFinite(raw) && raw > 0) return Math.floor(raw);
+  return 60;
+}
+
+/**
+ * Wait until the number of sends in the last minute is below the limit.
+ * Resolves true when a slot is free to send now, or false if we waited too
+ * long (so the caller can bail out rather than stall the vote).
+ */
+export async function acquireSendSlot(): Promise<boolean> {
+  const limit = getRateLimitPerMinute();
+  const deadline = Date.now() + MAX_SAFE_QUEUE_MS;
+  while (Date.now() < deadline) {
+    const now = Date.now();
+    // Prune timestamps older than the window.
+    while (sendTimestamps.length && sendTimestamps[0] <= now - RATE_LIMIT_WINDOW_MS) {
+      sendTimestamps.shift();
+    }
+    if (sendTimestamps.length < limit) {
+      sendTimestamps.push(now);
+      return true;
+    }
+    // Window is full — wait a moment then re-check. Paces the burst.
+    await delay(250);
+  }
+  return false;
+}
+
+/** Mark a send that ended up not being delivered so it frees a slot. */
+export function releaseSendSlot() {
+  sendTimestamps.shift();
+}
+
 export async function sendMail(
   to: string,
   subject: string,
   html: string
 ): Promise<MailResult> {
-  // Discover whichever providers are configured (up to 4).
+  // Pace this send to respect the provider burst limit before trying anywhere.
+  if (!(await acquireSendSlot())) {
+    return {
+      sent: false,
+      error:
+        "Too many verification codes are being generated right now. Please wait a moment and try again.",
+    };
+  }
   let providerCount = 0;
   while (readProvider(providerCount)) providerCount++;
   if (providerCount === 0) {
@@ -167,6 +225,10 @@ export async function sendMail(
     attempts.push((transporter as any)?.options?.port || provider.port);
     transporter.close();
   }
+
+  // Nothing delivered — free the pacing slot so other sends aren't blocked by
+  // a failed one.
+  releaseSendSlot();
 
   return {
     sent: false,
