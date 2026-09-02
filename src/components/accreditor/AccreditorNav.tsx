@@ -5,46 +5,22 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/LogoutButton";
 
-const GROUPS: { title: string; links: { href: string; label: string }[] }[] = [
-  {
-    title: "Election",
-    links: [
-      { href: "/admin", label: "Dashboard" },
-      { href: "/admin/positions", label: "Positions" },
-      { href: "/admin/aspirants", label: "Aspirants" },
-      { href: "/admin/executives", label: "Executives" },
-      { href: "/admin/voters", label: "Voters" },
-    ],
-  },
-  {
-    title: "Operations",
-    links: [
-      { href: "/admin/accreditation", label: "Accreditation" },
-      { href: "/admin/accreditors", label: "Accreditors" },
-      { href: "/admin/settings", label: "Voting Period" },
-      { href: "/admin/live", label: "Live Votes" },
-      { href: "/admin/ip-audit", label: "IP Audit" },
-      { href: "/admin/voter-activity", label: "Voter Activity" },
-      { href: "/admin/face-audit", label: "Face Audit" },
-      { href: "/admin/reports", label: "Reports" },
-      { href: "/admin/audit-log", label: "Audit Log" },
-      { href: "/admin/content", label: "Content & Branding" },
-    ],
-  },
+const LINKS = [
+  { href: "/accreditor", label: "Dashboard" },
+  { href: "/accreditor/accreditation", label: "Accreditation" },
 ];
 
-export function AdminNav() {
+export function AccreditorNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // The login page lives under /admin but must not show the sidebar.
-  if (pathname === "/admin/login") return null;
+  if (pathname === "/accreditor/login") return null;
 
   return (
     <>
       {/* Top bar (mobile / tablet only) */}
       <div className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
-        <span className="text-sm font-semibold text-ink">SUG Electoral Comm.</span>
+        <span className="text-sm font-semibold text-ink">Accreditor</span>
         <button
           type="button"
           aria-label="Open menu"
@@ -60,7 +36,7 @@ export function AdminNav() {
 
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 border-r border-slate-200 bg-white lg:block">
-        <AdminNavInner pathname={pathname} onNavigate={() => {}} />
+        <AccreditorNavInner pathname={pathname} onNavigate={() => {}} />
       </aside>
 
       {/* Mobile/tablet drawer */}
@@ -72,7 +48,7 @@ export function AdminNav() {
             aria-hidden="true"
           />
           <aside className="absolute left-0 top-0 h-full w-64 max-w-[80vw] overflow-y-auto border-r border-slate-200 bg-white shadow-xl">
-            <AdminNavInner
+            <AccreditorNavInner
               pathname={pathname}
               onNavigate={() => setOpen(false)}
               onClose={() => setOpen(false)}
@@ -84,7 +60,7 @@ export function AdminNav() {
   );
 }
 
-function AdminNavInner({
+function AccreditorNavInner({
   pathname,
   onNavigate,
   onClose,
@@ -100,7 +76,7 @@ function AdminNavInner({
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             SUG Electoral Comm.
           </p>
-          <p className="mt-0.5 truncate text-sm font-semibold text-ink">Admin</p>
+          <p className="mt-0.5 truncate text-sm font-semibold text-ink">Accreditor</p>
         </div>
         {onClose && (
           <button
@@ -113,33 +89,24 @@ function AdminNavInner({
           </button>
         )}
       </div>
-      <nav className="flex-1 space-y-4 overflow-y-auto p-3">
-        {GROUPS.map((group) => (
-          <div key={group.title}>
-            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              {group.title}
-            </p>
-            <div className="space-y-1">
-              {group.links.map((l) => {
-                const active = pathname === l.href;
-                return (
-                  <Link
-                    key={l.href}
-                    href={l.href}
-                    onClick={onNavigate}
-                    className={`block rounded-lg px-3 py-2 text-sm font-medium ${
-                      active
-                        ? "bg-brand-50 text-brand-700"
-                        : "text-slate-600 hover:bg-brand-50 hover:text-brand-700"
-                    }`}
-                  >
-                    {l.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        {LINKS.map((l) => {
+          const active = pathname === l.href;
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              onClick={onNavigate}
+              className={`block rounded-lg px-3 py-2 text-sm font-medium ${
+                active
+                  ? "bg-brand-50 text-brand-700"
+                  : "text-slate-600 hover:bg-brand-50 hover:text-brand-700"
+              }`}
+            >
+              {l.label}
+            </Link>
+          );
+        })}
       </nav>
       <div className="border-t border-slate-100 p-3">
         <Link
@@ -150,7 +117,7 @@ function AdminNavInner({
           View site →
         </Link>
         <LogoutButton
-          href="/api/admin/logout"
+          href="/api/accreditor/logout"
           className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"
           label="Sign out"
         />

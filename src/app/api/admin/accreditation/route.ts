@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminApi } from "@/lib/session";
+import { requireAdminApi, requireAccreditorApi } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
+import { getClientIp } from "@/lib/ip";
 
 export async function GET(req: Request) {
   const admin = await requireAdminApi();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const accreditor = admin ? null : await requireAccreditorApi();
+  if (!admin && !accreditor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim() || "";
   const status = searchParams.get("status"); // "", "accredited", "pending"
@@ -60,7 +64,13 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const admin = await requireAdminApi();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const accreditor = admin ? null : await requireAccreditorApi();
+  if (!admin && !accreditor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const actor = admin
+    ? { actor: "admin", actorName: admin.name }
+    : { actor: `accreditor:${accreditor!.id}`, actorName: accreditor!.name };
+
   const body = await req.json().catch(() => ({}));
   const voterId = Number(body.voterId);
   const accredited = Boolean(body.accredited);
@@ -84,5 +94,14 @@ export async function POST(req: Request) {
       _count: { select: { votes: true } },
     },
   });
+
+  await logAudit({
+    ...actor,
+    action: accredited ? "accredit" : "revoke",
+    target: `voter:${voterId}`,
+    detail: `${voter.firstName} ${voter.lastName} (${voter.matNumber})`,
+    ip: getClientIp(req),
+  });
+
   return NextResponse.json({ ok: true, voter });
 }

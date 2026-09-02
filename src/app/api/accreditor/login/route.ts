@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { createAdminSession } from "@/lib/session";
+import { createAccreditorSession } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { getClientIp } from "@/lib/ip";
 
@@ -16,22 +16,26 @@ export async function POST(req: Request) {
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "");
 
-  const admin = await prisma.admin.findUnique({ where: { email } });
-  if (!admin) {
+  const accreditor = await prisma.accreditor.findUnique({ where: { email } });
+  if (!accreditor) {
     return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
   }
 
-  const ok = await bcrypt.compare(password, admin.password);
+  if (!accreditor.active) {
+    return NextResponse.json({ error: "Account has been deactivated." }, { status: 403 });
+  }
+
+  const ok = await bcrypt.compare(password, accreditor.password);
   if (!ok) {
     return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
   }
 
-  await createAdminSession(admin.id);
+  await createAccreditorSession(accreditor.id);
 
   await logAudit({
-    actor: "admin",
-    actorName: admin.name,
-    action: "admin_login",
+    actor: `accreditor:${accreditor.id}`,
+    actorName: accreditor.name,
+    action: "accreditor_login",
     ip: getClientIp(req),
   });
 

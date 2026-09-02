@@ -20,10 +20,12 @@ export function AccreditationManager({
   initialVoters,
   initialTotal,
   initialAccredited,
+  loginUrl = "/admin/login",
 }: {
   initialVoters: Voter[];
   initialTotal: number;
   initialAccredited: number;
+  loginUrl?: string;
 }) {
   const [voters, setVoters] = useState<Voter[]>(initialVoters);
   const [total, setTotal] = useState(initialTotal);
@@ -42,7 +44,7 @@ export function AccreditationManager({
     params.set("page", String(page));
     const res = await fetch(`/api/admin/accreditation?${params.toString()}`);
     if (res.status === 401) {
-      window.location.href = "/admin/login";
+      window.location.href = loginUrl;
       return;
     }
     const text = await res.text();

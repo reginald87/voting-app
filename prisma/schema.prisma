@@ -15,6 +15,26 @@ model Admin {
   createdAt DateTime @default(now())
 }
 
+model Accreditor {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actor     String
+  actorName String
+  action    String
+  target    String?
+  detail    String?
+  ip        String?
+  createdAt DateTime @default(now())
+}
+
 model Voter {
   id          Int       @id @default(autoincrement())
   matNumber   String    @unique

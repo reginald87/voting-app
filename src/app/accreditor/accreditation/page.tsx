@@ -1,11 +1,11 @@
-import { requireAdmin } from "@/lib/session";
+import { requireAccreditor } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { AccreditationManager } from "@/components/admin/AccreditationManager";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminAccreditationPage() {
-  await requireAdmin();
+export default async function AccreditorAccreditationPage() {
+  await requireAccreditor();
   const [voters, total, accredited] = await Promise.all([
     prisma.voter.findMany({
       orderBy: [{ accredited: "asc" }, { createdAt: "desc" }],
@@ -39,7 +39,7 @@ export default async function AdminAccreditationPage() {
           }))}
           initialTotal={total}
           initialAccredited={accredited}
-          loginUrl="/admin/login"
+          loginUrl="/accreditor/login"
         />
       </div>
     </div>

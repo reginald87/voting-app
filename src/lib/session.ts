@@ -5,6 +5,7 @@ import { prisma } from "./prisma";
 
 const SESSION_COOKIE = "bmu_session";
 const ADMIN_COOKIE = "bmu_admin";
+const ACCREDITOR_COOKIE = "bmu_accreditor";
 const SECRET = process.env.SESSION_SECRET || "dev-insecure-secret-change-me";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 
@@ -114,6 +115,47 @@ export async function requireAdmin() {
 export async function requireAdminApi() {
   try {
     return await requireAdmin();
+  } catch {
+    return null;
+  }
+}
+
+// ---- Accreditor session helpers ----
+
+export async function createAccreditorSession(accreditorId: number) {
+  const value = sign(String(accreditorId));
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  cookies().set(ACCREDITOR_COOKIE, value, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: expiresAt,
+  });
+}
+
+export async function destroyAccreditorSession() {
+  cookies().delete(ACCREDITOR_COOKIE);
+}
+
+export async function getAccreditor() {
+  const value = cookies().get(ACCREDITOR_COOKIE)?.value;
+  const raw = unsign(value);
+  if (!raw) return null;
+  const accreditor = await prisma.accreditor.findUnique({ where: { id: Number(raw) } });
+  if (!accreditor || !accreditor.active) return null;
+  return accreditor;
+}
+
+export async function requireAccreditor() {
+  const accreditor = await getAccreditor();
+  if (!accreditor) redirect("/accreditor/login");
+  return accreditor;
+}
+
+export async function requireAccreditorApi() {
+  try {
+    return await requireAccreditor();
   } catch {
     return null;
   }
