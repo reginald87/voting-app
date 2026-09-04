@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const matNumber = String(body.matNumber || "").trim();
+  const matNumber = String(body.matNumber || "").trim().toUpperCase();
   const code = String(body.code || "").trim();
   // Accept both stringified JSON and raw arrays — the client serialises the
   // descriptor as a JSON array inside the request body, while the register

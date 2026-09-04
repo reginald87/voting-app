@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const matNumber = String(body.matNumber || "").trim();
+  const matNumber = String(body.matNumber || "").trim().toUpperCase();
   if (!matNumber) {
     return NextResponse.json({ error: "Matriculation number is required." }, { status: 400 });
   }
