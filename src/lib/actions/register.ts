@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { issueOtp } from "@/lib/otp";
-import { enrollFace, faceEnabled, findEnrolledMatch } from "@/lib/face";
+import { enrollFace, faceEnabled, evaluateDuplicate } from "@/lib/face";
 import { getRegistrationStatus } from "@/lib/election";
 import { LEVELS, isValidMatNumber } from "@/lib/constants";
 
@@ -64,12 +64,27 @@ export async function registerAction(formData: FormData) {
 
   const faceOn = await faceEnabled();
   if (faceOn && faceTemplate) {
-    const dupe = await findEnrolledMatch(faceTemplate);
-    if (dupe) {
+    const dup = await evaluateDuplicate(faceTemplate);
+    // Only a near-certain match (inside the hard threshold) blocks
+    // registration. Ambiguous "review band" matches are allowed through and
+    // flagged on the new voter below so an officer can compare the faces.
+    if (dup.level === "hard" && dup.match) {
+      console.warn(
+        `[registerAction] duplicate face BLOCKED (${matNumber}): ` +
+          `distance ${dup.match.distance.toFixed(3)} vs voter#${dup.match.voterId} ` +
+          `(${dup.match.matNumber}, ${dup.match.name}).`
+      );
       return {
         error:
           "This face is already registered to another voter account. Each student can only register a single account.",
       };
+    }
+    if (dup.level === "review" && dup.match) {
+      console.warn(
+        `[registerAction] ambiguous face duplicate (${matNumber}): ` +
+          `distance ${dup.match.distance.toFixed(3)} vs voter#${dup.match.voterId} ` +
+          `(${dup.match.matNumber}, ${dup.match.name}). Will be flagged for review.`
+      );
     }
   }
 

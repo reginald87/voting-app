@@ -53,6 +53,15 @@ model Voter {
   faceImageUrl String?
   faceEnrolled Boolean  @default(false)
   faceRegisteredAt DateTime?
+  // Ambiguous face-duplicate flag (lookalike / capture that was "close but not
+  // certain"). Set when a face lands inside the review band during enrollment
+  // so an election officer can compare the two faces and resolve.
+  faceDuplicateOfId      Int?
+  faceDuplicateOf        Voter?   @relation("FaceDuplicateLink", fields: [faceDuplicateOfId], references: [id])
+  faceDuplicateDistance  Float?
+  faceDuplicateFlaggedAt DateTime?
+  faceDuplicateReviewed  Boolean  @default(false)
+  faceDuplicateReferrers Voter[]  @relation("FaceDuplicateLink")
   createdAt   DateTime  @default(now())
   sessions    Session[]
   votes       Vote[]

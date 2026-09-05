@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { PaginationControls } from "@/components/admin/PaginationControls";
 import { ZoomableImage } from "@/components/ZoomableImage";
+import {
+  FaceDuplicateReviewCard,
+  type FaceFlagDetails,
+} from "@/components/admin/FaceDuplicateReviewCard";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +25,42 @@ export async function FaceAuditView({
 }: {
   searchParams: { vp?: string; pp?: string };
 }) {
-  const [totalVoters, enrolledCount, voteDeltas, totalProofs] = await Promise.all([
-    prisma.voter.count(),
-    prisma.voter.count({ where: { faceEnrolled: true } }),
-    prisma.vote.groupBy({ by: ["voterId"], _count: { voterId: true } }),
-    prisma.vote.count({ where: { faceProof: { not: null } } }),
-  ]);
+  const [totalVoters, enrolledCount, voteDeltas, totalProofs, dupeFlags] =
+    await Promise.all([
+      prisma.voter.count(),
+      prisma.voter.count({ where: { faceEnrolled: true } }),
+      prisma.vote.groupBy({ by: ["voterId"], _count: { voterId: true } }),
+      prisma.vote.count({ where: { faceProof: { not: null } } }),
+      prisma.voter.findMany({
+        where: {
+          faceEnrolled: true,
+          faceDuplicateOfId: { not: null },
+          faceDuplicateReviewed: false,
+        },
+        select: {
+          id: true,
+          matNumber: true,
+          firstName: true,
+          lastName: true,
+          faceImageUrl: true,
+          faceDuplicateOfId: true,
+          faceDuplicateDistance: true,
+          faceDuplicateFlaggedAt: true,
+          faceDuplicateOf: {
+            select: {
+              id: true,
+              matNumber: true,
+              firstName: true,
+              lastName: true,
+              faceImageUrl: true,
+              faceEnrolled: true,
+            },
+          },
+        },
+        orderBy: { faceDuplicateFlaggedAt: "desc" },
+        take: 50,
+      }),
+    ]);
 
   const voterTotalPages = Math.max(
     1,
@@ -87,6 +121,41 @@ export async function FaceAuditView({
         Which voters have registered a face, when, and how many votes each cast. Face
         templates are stored encrypted at rest; only a salted hash is shown here.
       </p>
+
+      {dupeFlags.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-bold text-ink">
+            Needs review{" "}
+            <span className="badge-amber ml-1 align-middle">{dupeFlags.length}</span>
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            A new face matched an existing enrolment closely enough to be flagged, but
+            not closely enough to be an automatic block. Compare the two photos and
+            confirm whether they are the same person.
+          </p>
+          <div className="mt-4 space-y-4">
+            {dupeFlags.map((f) => {
+              if (!f.faceDuplicateOf) return null;
+              const flag: FaceFlagDetails = {
+                id: f.id,
+                matNumber: f.matNumber,
+                name: `${f.firstName} ${f.lastName}`,
+                faceImageUrl: f.faceImageUrl,
+                distance: f.faceDuplicateDistance ?? 0,
+                againstId: f.faceDuplicateOf.id,
+                againstMatNumber: f.faceDuplicateOf.matNumber,
+                againstName: `${f.faceDuplicateOf.firstName} ${f.faceDuplicateOf.lastName}`,
+                againstFaceImageUrl: f.faceDuplicateOf.faceImageUrl,
+                againstEnrolled: f.faceDuplicateOf.faceEnrolled,
+                flaggedAt: f.faceDuplicateFlaggedAt
+                  ? dtf.format(f.faceDuplicateFlaggedAt)
+                  : "—",
+              };
+              return <FaceDuplicateReviewCard key={f.id} flag={flag} />;
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-4">
         <div className="card p-5">

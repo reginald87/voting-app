@@ -68,7 +68,14 @@ export async function POST(req: Request) {
     // enrollment here is trusted as the voter's own face.
     if (!voter.faceEnrolled) {
       try {
-        await enrollFace(voter.id, faceTemplate);
+        const enroll = await enrollFace(voter.id, faceTemplate);
+        if (enroll.status === "review" && enroll.match) {
+          console.warn(
+            `[verify-otp] ambiguous face duplicate (${voter.matNumber}, voter#${voter.id}): ` +
+              `distance ${enroll.match.distance.toFixed(3)} vs voter#${enroll.match.voterId} ` +
+              `(${enroll.match.matNumber}, ${enroll.match.name}). Flagged for admin review.`
+          );
+        }
         // Persist a browsable crop of the registered face for the admin panel.
         const imageUrl = await saveFaceImage(body.faceImage);
         if (imageUrl) {
@@ -79,6 +86,11 @@ export async function POST(req: Request) {
         }
       } catch (err) {
         if (err instanceof DuplicateFaceError) {
+          console.warn(
+            `[verify-otp] duplicate face BLOCKED (${matNumber}): ` +
+              `distance ${err.match?.distance?.toFixed(3)} vs voter#${err.match?.voterId} ` +
+              `(${err.match?.matNumber}, ${err.match?.name}).`
+          );
           return NextResponse.json(
             {
               error:
