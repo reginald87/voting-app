@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isValidMatNumber } from "@/lib/constants";
 import { PaginationControls } from "@/components/admin/PaginationControls";
+import { ZoomableImage } from "@/components/ZoomableImage";
+import { VoterPicker } from "@/components/admin/VoterPicker";
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +131,10 @@ export default async function AdminVoterActivityPage({
         </button>
       </form>
 
+      <div className="mt-3">
+        <VoterPicker />
+      </div>
+
       {mat && !voter && (
         <div className="mt-6 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
           No voter found with matriculation number <b>{mat}</b>.
@@ -191,10 +197,11 @@ export default async function AdminVoterActivityPage({
                   </div>
                 </div>
                 {ev.kind === "vote" && ev.imageUrl && (
-                  <img
+                  <ZoomableImage
                     src={ev.imageUrl}
                     alt="cast vote face"
-                    className="h-16 w-16 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                    imgClassName="h-16 w-16 rounded-lg object-cover ring-1 ring-slate-200"
+                    buttonClassName="shrink-0"
                   />
                 )}
               </div>
