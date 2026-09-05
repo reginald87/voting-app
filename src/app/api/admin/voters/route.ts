@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminApi } from "@/lib/session";
+import { requireAdminApi, requireAdminOrAccreditorApi } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 // List voters (searchable, paginated). Returns a light shape plus the number
 // of votes each voter has cast, so the UI can warn before deletion.
 export async function GET(req: Request) {
-  const admin = await requireAdminApi();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const principal = await requireAdminOrAccreditorApi();
+  if (!principal) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get("q") || "").trim();
   const page = Math.max(1, Number(searchParams.get("page")) || 1);

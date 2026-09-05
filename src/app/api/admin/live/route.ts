@@ -1,11 +1,11 @@
-import { requireAdmin } from "@/lib/session";
+import { requireAdminOrAccreditorApi } from "@/lib/session";
 import { getLiveResults } from "@/lib/election";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const admin = await requireAdmin().catch(() => null);
-  if (!admin) {
+  const principal = await requireAdminOrAccreditorApi();
+  if (!principal) {
     return new Response("Unauthorized", { status: 401 });
   }
 

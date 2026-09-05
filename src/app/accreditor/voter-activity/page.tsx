@@ -1,21 +1,20 @@
-import { requireAdmin } from "@/lib/session";
+import { requireAccreditor } from "@/lib/session";
 import { VoterActivityView } from "@/components/admin/VoterActivityView";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminVoterActivityPage({
+export default async function AccreditorVoterActivityPage({
   searchParams,
 }: {
   searchParams: { mat?: string; epage?: string };
 }) {
-  await requireAdmin();
+  await requireAccreditor();
 
   return (
     <VoterActivityView
       searchParams={searchParams}
-      backHref="/admin/ip-audit"
-      pickerBasePath="/admin/voter-activity"
-      pickerLoginUrl="/admin/login"
+      pickerBasePath="/accreditor/voter-activity"
+      pickerLoginUrl="/accreditor/login"
     />
   );
 }

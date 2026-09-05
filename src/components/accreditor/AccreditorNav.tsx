@@ -8,6 +8,10 @@ import { LogoutButton } from "@/components/LogoutButton";
 const LINKS = [
   { href: "/accreditor", label: "Dashboard" },
   { href: "/accreditor/accreditation", label: "Accreditation" },
+  { href: "/accreditor/live", label: "Live Votes" },
+  { href: "/accreditor/face-audit", label: "Face Audit" },
+  { href: "/accreditor/voter-activity", label: "Voter Activity" },
+  { href: "/accreditor/otp", label: "Issue OTP" },
 ];
 
 export function AccreditorNav() {

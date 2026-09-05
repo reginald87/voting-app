@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminApi } from "@/lib/session";
+import { requireAdminOrAccreditorApi } from "@/lib/session";
 import { issueOtpAdmin } from "@/lib/otp";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const admin = await requireAdminApi();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const principal = await requireAdminOrAccreditorApi();
+  if (!principal) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   let body: any;
   try {

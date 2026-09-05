@@ -160,3 +160,8 @@ export async function requireAccreditorApi() {
     return null;
   }
 }
+
+/** API variant that accepts either an admin or an active accreditor session. */
+export async function requireAdminOrAccreditorApi() {
+  return (await requireAdminApi()) ?? (await requireAccreditorApi());
+}
