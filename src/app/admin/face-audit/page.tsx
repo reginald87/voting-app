@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PaginationControls } from "@/components/admin/PaginationControls";
+import { ZoomableImage } from "@/components/ZoomableImage";
 
 export const dynamic = "force-dynamic";
 
@@ -138,10 +139,10 @@ export default async function AdminFaceAuditPage({
                 >
                   <td className="px-4 py-3">
                     {v.faceImageUrl ? (
-                      <img
+                      <ZoomableImage
                         src={v.faceImageUrl}
                         alt={`${v.firstName} ${v.lastName}`}
-                        className="h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200"
+                        imgClassName="h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200"
                       />
                     ) : (
                       <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-slate-100 text-lg font-bold text-slate-400">
@@ -212,10 +213,10 @@ export default async function AdminFaceAuditPage({
                   <tr key={vp.id} className="border-t border-slate-100">
                     <td className="px-4 py-3">
                       {vp.faceImageUrl ? (
-                        <img
+                        <ZoomableImage
                           src={vp.faceImageUrl}
-                          alt={vp.voter.matNumber}
-                          className="h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200"
+                          alt={`${vp.voter.firstName} ${vp.voter.lastName}`}
+                          imgClassName="h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200"
                         />
                       ) : (
                         <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-slate-100 text-lg font-bold text-slate-400">
