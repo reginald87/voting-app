@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyOtp } from "@/lib/otp";
 import { createVoterSession } from "@/lib/session";
 import { getClientIp } from "@/lib/ip";
-import { faceEnabled, enrollFace, matchFace } from "@/lib/face";
+import { faceEnabled, enrollFace, matchFace, DuplicateFaceError } from "@/lib/face";
 import { proofHashFromRaw } from "@/lib/biometric";
 import { saveFaceImage } from "@/lib/faceImage";
 
@@ -77,7 +77,16 @@ export async function POST(req: Request) {
             data: { faceImageUrl: imageUrl },
           });
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof DuplicateFaceError) {
+          return NextResponse.json(
+            {
+              error:
+                "This face is already registered to a different voter account. If this is your face, please sign in with that account's matriculation number. Otherwise contact an election officer.",
+            },
+            { status: 409 }
+          );
+        }
         return NextResponse.json(
           { error: "Your face could not be registered. Please try again." },
           { status: 503 }

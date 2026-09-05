@@ -35,16 +35,88 @@ export async function hasEnrolledFace(voterId: number): Promise<boolean> {
   return true;
 }
 
+/** Thrown when a presented face already belongs to another voter's account. */
+export class DuplicateFaceError extends Error {
+  match: { voterId: number; matNumber: string; name: string } | null;
+
+  constructor(
+    message: string,
+    match?: { voterId: number; matNumber: string; name: string } | null
+  ) {
+    super(message);
+    this.name = "DuplicateFaceError";
+    this.match = match ?? null;
+  }
+}
+
+/**
+ * Search all enrolled faces for one matching the presented descriptor. Returns
+ * the closest match at or below `MATCH_THRESHOLD`, or null. `excludeVoterId`
+ * skips the voter's own template (re-enrollment of the same account).
+ */
+export async function findEnrolledMatch(
+  descriptor: unknown,
+  excludeVoterId?: number
+): Promise<{ voterId: number; matNumber: string; name: string } | null> {
+  const presented = normalizeDescriptor(descriptor);
+  if (!presented) return null;
+
+  const candidates = await prisma.voter.findMany({
+    where: {
+      id: excludeVoterId ? { not: excludeVoterId } : undefined,
+      faceEnrolled: true,
+      faceTemplate: { not: null },
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      matNumber: true,
+      faceTemplate: true,
+      faceSalt: true,
+    },
+  });
+
+  let best: { voterId: number; matNumber: string; name: string; distance: number } | null =
+    null;
+  for (const c of candidates) {
+    const enrolled =
+      (c.faceSalt ? decryptDescriptor(c.faceTemplate ?? "", c.faceSalt) : null) ??
+      normalizeDescriptor(c.faceTemplate);
+    if (!enrolled) continue;
+    const distance = euclidean(enrolled, presented);
+    if (distance <= MATCH_THRESHOLD && (!best || distance < best.distance)) {
+      best = {
+        voterId: c.id,
+        matNumber: c.matNumber,
+        name: `${c.firstName} ${c.lastName}`,
+        distance,
+      };
+    }
+  }
+  return best;
+}
+
 /**
  * Enroll (or re-enroll) a voter's face. Called only after the voter has proven
  * identity via the OTP, so the face bound here is trusted. Stores only the
- * encrypted template + a salted hash — never the raw descriptor.
+ * encrypted template + a salted hash — never the raw descriptor. Refuses to
+ * enroll a face that already matches a different voter's account.
  */
 export async function enrollFace(voterId: number, descriptor: unknown) {
   const desc = normalizeDescriptor(descriptor);
   if (!desc) throw new Error("Invalid face descriptor");
 
   const existing = await prisma.voter.findUnique({ where: { id: voterId } });
+
+  const dupe = await findEnrolledMatch(desc, voterId);
+  if (dupe) {
+    throw new DuplicateFaceError(
+      "This face is already registered to another voter account.",
+      dupe
+    );
+  }
+
   const salt = existing?.faceSalt || randomSalt();
 
   await prisma.voter.update({

@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { issueOtp } from "@/lib/otp";
-import { enrollFace, faceEnabled } from "@/lib/face";
+import { enrollFace, faceEnabled, findEnrolledMatch } from "@/lib/face";
 import { getRegistrationStatus } from "@/lib/election";
 import { LEVELS, isValidMatNumber } from "@/lib/constants";
 
@@ -62,6 +62,17 @@ export async function registerAction(formData: FormData) {
     }
   }
 
+  const faceOn = await faceEnabled();
+  if (faceOn && faceTemplate) {
+    const dupe = await findEnrolledMatch(faceTemplate);
+    if (dupe) {
+      return {
+        error:
+          "This face is already registered to another voter account. Each student can only register a single account.",
+      };
+    }
+  }
+
   const file = formData.get("receipt");
   let sugReceiptUrl: string | null = null;
   if (file instanceof File) {
@@ -97,7 +108,6 @@ export async function registerAction(formData: FormData) {
     return { error: message };
   }
 
-  const faceOn = await faceEnabled();
   if (faceOn && !faceTemplate) {
     return { error: "Face enrollment is required. Please capture your face to continue." };
   }
